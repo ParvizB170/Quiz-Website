@@ -1,8 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, Plus, GripVertical, Image as ImageIcon, Check, Trash2, Copy, 
-  Settings, Clock, Award, Sparkles, ArrowLeft, Play, Save, AlertCircle, Wand2 
+  Settings, Clock, Award, Sparkles, ArrowLeft, Play, Save, AlertCircle, Wand2, Globe, Lock, Palette 
 } from 'lucide-react';
+
+const coverColors = [
+  { name: 'Electric Violet', hex: '#7C3AED' },
+  { name: 'Sunset Orange', hex: '#F97316' },
+  { name: 'Emerald Green', hex: '#10B981' },
+  { name: 'Deep Blue', hex: '#3B82F6' },
+  { name: 'Neon Pink', hex: '#EC4899' },
+  { name: 'Lime Gold', hex: '#A3E635' },
+];
 
 const sampleSpaceQuestions = [
   {
@@ -44,100 +53,64 @@ const sampleSpaceQuestions = [
       { id: 1, text: 'True', shape: '▲', color: 'bg-red-500', isCorrect: true },
       { id: 2, text: 'False', shape: '◆', color: 'bg-blue-500', isCorrect: false },
     ]
-  },
-  {
-    id: 104,
-    title: 'Which galaxy is the closest large spiral galaxy to the Milky Way?',
-    type: 'Quiz',
-    timeLimit: 20,
-    points: 'Double',
-    image: null,
-    answers: [
-      { id: 1, text: 'Andromeda', shape: '▲', color: 'bg-red-500', isCorrect: true },
-      { id: 2, text: 'Triangulum', shape: '◆', color: 'bg-blue-500', isCorrect: false },
-      { id: 3, text: 'Sombrero', shape: '●', color: 'bg-amber-500', isCorrect: false },
-      { id: 4, text: 'Whirlpool', shape: '■', color: 'bg-emerald-500', isCorrect: false },
-    ]
-  },
-  {
-    id: 105,
-    title: 'The Sun is classified as what type of star?',
-    type: 'Quiz',
-    timeLimit: 20,
-    points: 'Standard',
-    image: null,
-    answers: [
-      { id: 1, text: 'Red Giant', shape: '▲', color: 'bg-red-500', isCorrect: false },
-      { id: 2, text: 'White Dwarf', shape: '◆', color: 'bg-blue-500', isCorrect: false },
-      { id: 3, text: 'Yellow Dwarf (G-type)', shape: '●', color: 'bg-amber-500', isCorrect: true },
-      { id: 4, text: 'Blue Supergiant', shape: '■', color: 'bg-emerald-500', isCorrect: false },
-    ]
-  },
-  {
-    id: 106,
-    title: 'Black holes emit intense visible light directly from beyond their event horizons.',
-    type: 'True/False',
-    timeLimit: 15,
-    points: 'Standard',
-    image: null,
-    answers: [
-      { id: 1, text: 'True', shape: '▲', color: 'bg-red-500', isCorrect: false },
-      { id: 2, text: 'False', shape: '◆', color: 'bg-blue-500', isCorrect: true },
-    ]
-  },
-  {
-    id: 107,
-    title: 'Who was the first human to walk on the Moon in 1969?',
-    type: 'Quiz',
-    timeLimit: 15,
-    points: 'Standard',
-    image: null,
-    answers: [
-      { id: 1, text: 'Buzz Aldrin', shape: '▲', color: 'bg-red-500', isCorrect: false },
-      { id: 2, text: 'Yuri Gagarin', shape: '◆', color: 'bg-blue-500', isCorrect: false },
-      { id: 3, text: 'Neil Armstrong', shape: '●', color: 'bg-amber-500', isCorrect: true },
-      { id: 4, text: 'Michael Collins', shape: '■', color: 'bg-emerald-500', isCorrect: false },
-    ]
-  },
-  {
-    id: 108,
-    title: 'Light from the Sun takes approximately how long to reach Earth?',
-    type: 'Quiz',
-    timeLimit: 20,
-    points: 'Double',
-    image: null,
-    answers: [
-      { id: 1, text: '8 minutes', shape: '▲', color: 'bg-red-500', isCorrect: true },
-      { id: 2, text: '1 second', shape: '◆', color: 'bg-blue-500', isCorrect: false },
-      { id: 3, text: '24 hours', shape: '●', color: 'bg-amber-500', isCorrect: false },
-      { id: 4, text: '30 days', shape: '■', color: 'bg-emerald-500', isCorrect: false },
-    ]
   }
 ];
 
-const initialQuestions = [
-  {
-    id: 1,
-    title: 'Which organelle is known as the powerhouse of the cell?',
-    type: 'Quiz',
-    timeLimit: 20,
-    points: 'Standard',
-    image: null,
-    answers: [
-      { id: 1, text: 'Mitochondria', shape: '▲', color: 'bg-red-500', isCorrect: true },
-      { id: 2, text: 'Ribosome', shape: '◆', color: 'bg-blue-500', isCorrect: false },
-      { id: 3, text: 'Nucleus', shape: '●', color: 'bg-amber-500', isCorrect: false },
-      { id: 4, text: 'Golgi apparatus', shape: '■', color: 'bg-emerald-500', isCorrect: false },
-    ]
-  }
-];
-
-export default function CreateQuizStudio({ onClose }) {
-  const [questions, setQuestions] = useState(initialQuestions);
+export default function CreateQuizStudio({ currentQuiz, onClose, onSaveQuiz }) {
+  const [quizId] = useState(currentQuiz?.id || Date.now());
+  const [quizTitle, setQuizTitle] = useState(currentQuiz?.title || 'Untitled Science Blitz');
+  const [coverColor, setCoverColor] = useState(currentQuiz?.coverColor || '#7C3AED');
+  const [visibility, setVisibility] = useState(currentQuiz?.visibility || 'Private');
+  const [questions, setQuestions] = useState(currentQuiz?.questions || sampleSpaceQuestions);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [quizTitle, setQuizTitle] = useState('Untitled Science Blitz');
+
+  // Autosave status state
+  const [saveStatus, setSaveStatus] = useState('Saved ✓'); // 'Saving…' or 'Saved ✓'
+  const isInitialMount = useRef(true);
 
   const currentQ = questions[currentIndex] || questions[0];
+
+  // Autosave effect with debounce & persistence
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    setSaveStatus('Saving…');
+    const timer = setTimeout(() => {
+      const updatedQuiz = {
+        id: quizId,
+        title: quizTitle,
+        coverColor,
+        visibility,
+        questions,
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Save to localStorage with fallback
+      try {
+        const existing = JSON.parse(localStorage.getItem('brainblitz_quizzes') || '[]');
+        const index = existing.findIndex(q => q.id === quizId);
+        if (index >= 0) {
+          existing[index] = updatedQuiz;
+        } else {
+          existing.push(updatedQuiz);
+        }
+        localStorage.setItem('brainblitz_quizzes', JSON.stringify(existing));
+      } catch (err) {
+        console.warn('LocalStorage unavailable:', err);
+      }
+
+      if (onSaveQuiz) {
+        onSaveQuiz(updatedQuiz);
+      }
+
+      setSaveStatus('Saved ✓');
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [quizTitle, coverColor, visibility, questions]);
 
   const handleFillSampleQuiz = () => {
     setQuestions(sampleSpaceQuestions);
@@ -145,7 +118,6 @@ export default function CreateQuizStudio({ onClose }) {
     setCurrentIndex(0);
   };
 
-  // Helper to validate a question
   const getQuestionError = (q) => {
     if (!q.title || !q.title.trim()) {
       return 'Question text is required';
@@ -262,32 +234,63 @@ export default function CreateQuizStudio({ onClose }) {
           
           <div className="h-6 w-[1px] bg-white/10" />
 
+          {/* Editable Quiz Title */}
           <input 
             type="text"
             value={quizTitle}
             onChange={(e) => setQuizTitle(e.target.value)}
-            className="font-heading text-lg font-bold bg-transparent border border-transparent hover:border-white/20 focus:border-brand-lime focus:bg-white/5 rounded-xl px-3 py-1.5 transition-all outline-none text-white w-72"
+            className="font-heading text-lg font-bold bg-transparent border border-transparent hover:border-white/20 focus:border-brand-lime focus:bg-white/5 rounded-xl px-3 py-1.5 transition-all outline-none text-white w-64"
           />
+
+          {/* Cover Colour Picker */}
+          <div className="flex items-center gap-1.5 bg-brand-dark/60 px-3 py-1.5 rounded-xl border border-white/10">
+            <Palette className="w-4 h-4 text-slate-400" />
+            <div className="flex items-center gap-1.5">
+              {coverColors.map((c) => (
+                <button
+                  key={c.hex}
+                  onClick={() => setCoverColor(c.hex)}
+                  className={`w-5 h-5 rounded-full transition-all ${
+                    coverColor === c.hex ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
+                  }`}
+                  style={{ backgroundColor: c.hex }}
+                  title={c.name}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Visibility Toggle */}
+          <button
+            onClick={() => setVisibility(visibility === 'Private' ? 'Public' : 'Private')}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${
+              visibility === 'Public' 
+                ? 'bg-brand-lime/20 border-brand-lime/50 text-brand-lime' 
+                : 'bg-white/5 border-white/10 text-slate-300'
+            }`}
+          >
+            {visibility === 'Public' ? <Globe className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+            {visibility}
+          </button>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Fill with sample quiz button */}
+        <div className="flex items-center gap-4">
+          {/* Autosave Indicator */}
+          <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${saveStatus === 'Saving…' ? 'bg-amber-400 animate-ping' : 'bg-brand-lime'}`} />
+            {saveStatus}
+          </div>
+
+          {/* Fill with sample quiz */}
           <button 
             onClick={handleFillSampleQuiz}
-            className="px-4 py-2 rounded-xl bg-brand-violet/20 hover:bg-brand-violet/30 border border-brand-violet/50 text-brand-lime font-semibold text-sm transition-all flex items-center gap-2 shadow-glow-violet"
+            className="px-3.5 py-2 rounded-xl bg-brand-violet/20 hover:bg-brand-violet/30 border border-brand-violet/50 text-brand-lime font-semibold text-sm transition-all flex items-center gap-1.5"
           >
-            <Wand2 className="w-4 h-4 text-brand-lime animate-spin" style={{ animationDuration: '8s' }} />
-            ✨ Fill with sample quiz
+            <Wand2 className="w-4 h-4 text-brand-lime" />
+            ✨ Sample Quiz
           </button>
 
-          <button 
-            onClick={() => alert(`Quiz "${quizTitle}" saved successfully with ${questions.length} questions!`)}
-            className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 font-semibold text-sm transition-all flex items-center gap-2"
-          >
-            <Save className="w-4 h-4 text-brand-lime" />
-            Save Draft
-          </button>
-          
+          {/* Big 3D "Save & Host" button */}
           <button 
             onClick={() => {
               const hasAnyError = questions.some(q => getQuestionError(q));
@@ -295,12 +298,12 @@ export default function CreateQuizStudio({ onClose }) {
                 alert('Please resolve validation hints on your questions before hosting.');
                 return;
               }
-              alert(`Launching live game for "${quizTitle}"!`);
+              alert(`Saved and launching live game for "${quizTitle}"!`);
             }}
-            className="btn-tactile bg-brand-lime hover:bg-brand-limeHover text-brand-dark font-heading font-extrabold px-5 py-2.5 rounded-xl shadow-tactile-lime border-b-4 border-lime-700 flex items-center gap-2 text-sm"
+            className="btn-tactile bg-brand-lime hover:bg-brand-limeHover text-brand-dark font-heading font-extrabold px-6 py-3 rounded-2xl shadow-tactile-lime border-b-4 border-lime-700 flex items-center gap-2 text-base"
           >
-            <Play className="w-4 h-4 fill-brand-dark" />
-            Save & Host Game
+            <Play className="w-5 h-5 fill-brand-dark" />
+            Save & Host
           </button>
         </div>
       </header>
@@ -357,7 +360,6 @@ export default function CreateQuizStudio({ onClose }) {
                     </div>
                   </div>
 
-                  {/* Quick Action buttons on hover */}
                   <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
                     <button 
                       onClick={(e) => handleDuplicateQuestion(e, idx)}
@@ -398,7 +400,6 @@ export default function CreateQuizStudio({ onClose }) {
         <div className="flex-1 flex flex-col bg-brand-dark overflow-y-auto p-8 lg:p-12">
           <div className="max-w-4xl mx-auto w-full space-y-8">
             
-            {/* Friendly inline hint if validation fails */}
             {currentError && (
               <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center gap-3 text-red-300 animate-in fade-in">
                 <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
@@ -406,7 +407,6 @@ export default function CreateQuizStudio({ onClose }) {
               </div>
             )}
 
-            {/* Question Text Area */}
             <div className="space-y-3">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
                 Question {currentIndex + 1}
@@ -420,7 +420,6 @@ export default function CreateQuizStudio({ onClose }) {
               />
             </div>
 
-            {/* Image Upload Placeholder Area */}
             <div className="space-y-3">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
                 Media & Visuals (Optional)
@@ -440,7 +439,6 @@ export default function CreateQuizStudio({ onClose }) {
               </div>
             </div>
 
-            {/* Answer Tiles in Answer Colors */}
             <div className="space-y-3">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
                 Answer Options ({currentQ.answers.length}) — Click the round button to mark correct answer
@@ -453,12 +451,10 @@ export default function CreateQuizStudio({ onClose }) {
                       ans.isCorrect ? 'border-brand-lime bg-white/10 ring-2 ring-brand-lime/30' : 'border-white/10 bg-brand-cardDark/80'
                     }`}
                   >
-                    {/* Shape badge */}
                     <div className={`w-12 h-12 rounded-xl ${ans.color} flex items-center justify-center text-white font-extrabold text-xl shrink-0 shadow-md`}>
                       {ans.shape}
                     </div>
 
-                    {/* Answer Text Field */}
                     <input 
                       type="text"
                       value={ans.text}
@@ -467,7 +463,6 @@ export default function CreateQuizStudio({ onClose }) {
                       className="flex-1 font-heading font-bold text-lg bg-transparent border-none outline-none text-white placeholder:text-slate-500"
                     />
 
-                    {/* Round Correct Toggle */}
                     <button 
                       type="button"
                       onClick={() => handleAnswerChange(ans.id, 'isCorrect', !ans.isCorrect)}
@@ -498,7 +493,6 @@ export default function CreateQuizStudio({ onClose }) {
             </h3>
           </div>
 
-          {/* Question Type */}
           <div className="space-y-3">
             <label className="text-xs font-bold uppercase tracking-wider text-slate-400 font-heading block">
               Question Type
@@ -520,7 +514,6 @@ export default function CreateQuizStudio({ onClose }) {
             </div>
           </div>
 
-          {/* Time Limit Chips */}
           <div className="space-y-3">
             <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
               <Clock className="w-3.5 h-3.5 text-brand-lime" />
@@ -543,7 +536,6 @@ export default function CreateQuizStudio({ onClose }) {
             </div>
           </div>
 
-          {/* Points Multiplier */}
           <div className="space-y-3">
             <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
               <Award className="w-3.5 h-3.5 text-brand-lime" />
@@ -567,18 +559,6 @@ export default function CreateQuizStudio({ onClose }) {
                   <div className="text-[10px] text-slate-400">{p.desc}</div>
                 </button>
               ))}
-            </div>
-          </div>
-
-          <div className="mt-auto pt-6 border-t border-white/10">
-            <div className="p-4 rounded-2xl bg-brand-violet/10 border border-brand-violet/30 space-y-2">
-              <div className="flex items-center gap-1.5 text-brand-lime font-heading text-xs font-bold">
-                <Sparkles className="w-3.5 h-3.5" />
-                AI Generator Tip
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Need more questions? Click "+ Add question" or import from Quizlet and Google Forms instantly.
-              </p>
             </div>
           </div>
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Zap, Menu, X, Sparkles, Play, ShieldAlert } from 'lucide-react';
+import { Zap, Menu, X, Sparkles, Play, BookOpen } from 'lucide-react';
 
-export default function Navbar({ onHostClick }) {
+export default function Navbar({ onHostClick, onMyQuizzesClick }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -44,22 +44,27 @@ export default function Navbar({ onHostClick }) {
             <Sparkles className="w-3.5 h-3.5 text-brand-lime" />
             Game Modes
           </a>
+          <button 
+            onClick={onMyQuizzesClick}
+            className="text-sm font-medium text-slate-200 hover:text-brand-lime transition-colors flex items-center gap-1.5"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-brand-lime" />
+            My Quizzes
+          </button>
           <a href="#teachers" className="text-sm font-medium text-slate-200 hover:text-brand-lime transition-colors">
             For Teachers
-          </a>
-          <a href="#pricing" className="text-sm font-medium text-slate-200 hover:text-brand-lime transition-colors">
-            Pricing
           </a>
         </nav>
 
         {/* Action Buttons */}
         <div className="hidden md:flex items-center gap-4">
-          <a 
-            href="#login" 
-            className="text-sm font-semibold text-slate-300 hover:text-white px-4 py-2 transition-colors"
+          <button 
+            onClick={onMyQuizzesClick}
+            className="text-sm font-semibold text-slate-300 hover:text-white px-3 py-2 transition-colors flex items-center gap-1.5"
           >
-            Log in
-          </a>
+            <BookOpen className="w-4 h-4 text-brand-lime" />
+            My Quizzes
+          </button>
           <button 
             onClick={onHostClick}
             className="btn-tactile bg-brand-violet hover:bg-brand-violetDark text-white font-heading font-bold px-5 py-2.5 rounded-xl shadow-tactile border-b-4 border-violet-900 flex items-center gap-2 text-sm"
@@ -97,6 +102,13 @@ export default function Navbar({ onHostClick }) {
           >
             Game Modes
           </a>
+          <button 
+            onClick={() => { setMobileMenuOpen(false); onMyQuizzesClick(); }}
+            className="w-full text-left text-base font-medium text-slate-200 hover:text-brand-lime py-2 border-b border-white/5 flex items-center gap-2"
+          >
+            <BookOpen className="w-4 h-4 text-brand-lime" />
+            My Quizzes
+          </button>
           <a 
             href="#teachers" 
             onClick={() => setMobileMenuOpen(false)}
@@ -104,21 +116,7 @@ export default function Navbar({ onHostClick }) {
           >
             For Teachers
           </a>
-          <a 
-            href="#pricing" 
-            onClick={() => setMobileMenuOpen(false)}
-            className="block text-base font-medium text-slate-200 hover:text-brand-lime py-2 border-b border-white/5"
-          >
-            Pricing
-          </a>
           <div className="pt-2 flex flex-col gap-3">
-            <a 
-              href="#login" 
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-center py-3 rounded-xl bg-white/5 border border-white/10 font-semibold text-white"
-            >
-              Log in
-            </a>
             <button 
               onClick={() => { setMobileMenuOpen(false); onHostClick(); }}
               className="w-full btn-tactile bg-brand-violet text-white font-heading font-bold py-3 rounded-xl shadow-tactile border-b-4 border-violet-900 flex items-center justify-center gap-2"
