@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   X, Plus, GripVertical, Image as ImageIcon, Check, Trash2, Copy, 
-  Settings, Clock, Award, Sparkles, ArrowLeft, Play, Save 
+  Settings, Clock, Award, Sparkles, ArrowLeft, Play, Save, AlertCircle 
 } from 'lucide-react';
 
 const initialQuestions = [
@@ -54,43 +54,77 @@ export default function CreateQuizStudio({ onClose }) {
 
   const currentQ = questions[currentIndex] || questions[0];
 
+  // Helper to validate a question
+  const getQuestionError = (q) => {
+    if (!q.title || !q.title.trim()) {
+      return 'Question text is required';
+    }
+    if (!q.answers || q.answers.length < 2) {
+      return 'At least 2 answers are required';
+    }
+    const hasCorrect = q.answers.some(a => a.isCorrect);
+    if (!hasCorrect && q.type !== 'Poll') {
+      return 'Please select at least one correct answer';
+    }
+    return null;
+  };
+
   const handleQuestionChange = (field, value) => {
     const updated = [...questions];
-    updated[currentIndex] = { ...updated[currentIndex], [field]: value };
+    let updatedQ = { ...updated[currentIndex], [field]: value };
+
+    // If changing type to True/False, ensure answers reduce to 2
+    if (field === 'type' && value === 'True/False') {
+      updatedQ.answers = [
+        { id: 1, text: 'True', shape: '▲', color: 'bg-red-500', isCorrect: true },
+        { id: 2, text: 'False', shape: '◆', color: 'bg-blue-500', isCorrect: false },
+      ];
+    } else if (field === 'type' && value !== 'True/False' && updatedQ.answers.length === 2) {
+      // Expand back to 4 if switching away from True/False
+      updatedQ.answers = [
+        { id: 1, text: 'Answer 1', shape: '▲', color: 'bg-red-500', isCorrect: true },
+        { id: 2, text: 'Answer 2', shape: '◆', color: 'bg-blue-500', isCorrect: false },
+        { id: 3, text: 'Answer 3', shape: '●', color: 'bg-amber-500', isCorrect: false },
+        { id: 4, text: 'Answer 4', shape: '■', color: 'bg-emerald-500', isCorrect: false },
+      ];
+    }
+
+    updated[currentIndex] = updatedQ;
     setQuestions(updated);
   };
 
   const handleAnswerChange = (ansId, field, value) => {
     const updated = [...questions];
-    const answers = updated[currentIndex].answers.map(ans => {
+    const currentAnswers = updated[currentIndex].answers;
+    
+    const newAnswers = currentAnswers.map(ans => {
       if (ans.id === ansId) {
         return { ...ans, [field]: value };
       }
-      // If toggling correct on single-choice quiz, optionally make others incorrect
+      // If setting a new correct answer for single-choice quiz, unset others
       if (field === 'isCorrect' && value && updated[currentIndex].type !== 'Poll') {
         return { ...ans, isCorrect: false };
       }
       return ans;
     });
-    // Ensure the toggled one gets the new value
-    const finalAnswers = answers.map(ans => ans.id === ansId ? { ...ans, [field]: value } : ans);
-    updated[currentIndex].answers = finalAnswers;
+
+    updated[currentIndex].answers = newAnswers;
     setQuestions(updated);
   };
 
   const handleAddQuestion = () => {
     const newQ = {
-      id: questions.length + 1,
-      title: `New Question ${questions.length + 1}`,
+      id: Date.now(),
+      title: '',
       type: 'Quiz',
       timeLimit: 20,
       points: 'Standard',
       image: null,
       answers: [
-        { id: 1, text: 'Answer 1', shape: '▲', color: 'bg-red-500', isCorrect: true },
-        { id: 2, text: 'Answer 2', shape: '◆', color: 'bg-blue-500', isCorrect: false },
-        { id: 3, text: 'Answer 3', shape: '●', color: 'bg-amber-500', isCorrect: false },
-        { id: 4, text: 'Answer 4', shape: '■', color: 'bg-emerald-500', isCorrect: false },
+        { id: 1, text: '', shape: '▲', color: 'bg-red-500', isCorrect: false },
+        { id: 2, text: '', shape: '◆', color: 'bg-blue-500', isCorrect: false },
+        { id: 3, text: '', shape: '●', color: 'bg-amber-500', isCorrect: false },
+        { id: 4, text: '', shape: '■', color: 'bg-emerald-500', isCorrect: false },
       ]
     };
     setQuestions([...questions, newQ]);
@@ -112,14 +146,17 @@ export default function CreateQuizStudio({ onClose }) {
     const qToCopy = questions[index];
     const duplicated = {
       ...qToCopy,
-      id: questions.length + 1,
-      title: `${qToCopy.title} (Copy)`
+      id: Date.now(),
+      title: `${qToCopy.title || 'Question'} (Copy)`,
+      answers: qToCopy.answers.map(a => ({ ...a, id: Date.now() + Math.random() }))
     };
     const updated = [...questions];
     updated.splice(index + 1, 0, duplicated);
     setQuestions(updated);
     setCurrentIndex(index + 1);
   };
+
+  const currentError = getQuestionError(currentQ);
 
   return (
     <div className="fixed inset-0 z-50 bg-brand-dark flex flex-col text-slate-100 font-sans overflow-hidden animate-in fade-in">
@@ -147,7 +184,7 @@ export default function CreateQuizStudio({ onClose }) {
 
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => alert(`Quiz "${quizTitle}" saved successfully!`)}
+            onClick={() => alert(`Quiz "${quizTitle}" saved successfully with ${questions.length} questions!`)}
             className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 font-semibold text-sm transition-all flex items-center gap-2"
           >
             <Save className="w-4 h-4 text-brand-lime" />
@@ -155,7 +192,14 @@ export default function CreateQuizStudio({ onClose }) {
           </button>
           
           <button 
-            onClick={() => alert(`Launching live preview for "${quizTitle}"!`)}
+            onClick={() => {
+              const hasAnyError = questions.some(q => getQuestionError(q));
+              if (hasAnyError) {
+                alert('Please resolve validation hints on your questions before hosting.');
+                return;
+              }
+              alert(`Launching live game for "${quizTitle}"!`);
+            }}
             className="btn-tactile bg-brand-lime hover:bg-brand-limeHover text-brand-dark font-heading font-extrabold px-5 py-2.5 rounded-xl shadow-tactile-lime border-b-4 border-lime-700 flex items-center gap-2 text-sm"
           >
             <Play className="w-4 h-4 fill-brand-dark" />
@@ -175,7 +219,7 @@ export default function CreateQuizStudio({ onClose }) {
               Questions ({questions.length})
             </span>
             <span className="text-xs text-brand-lime font-semibold">
-              Auto-saved
+              Live State
             </span>
           </div>
 
@@ -183,6 +227,7 @@ export default function CreateQuizStudio({ onClose }) {
           <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
             {questions.map((q, idx) => {
               const isActive = currentIndex === idx;
+              const qError = getQuestionError(q);
               return (
                 <div 
                   key={q.id}
@@ -197,13 +242,17 @@ export default function CreateQuizStudio({ onClose }) {
                     <GripVertical className="w-4 h-4" />
                   </div>
 
-                  <div className="w-6 h-6 rounded-lg bg-brand-dark border border-white/10 flex items-center justify-center font-heading text-xs font-bold text-slate-300">
+                  <div className="relative w-6 h-6 rounded-lg bg-brand-dark border border-white/10 flex items-center justify-center font-heading text-xs font-bold text-slate-300">
                     {idx + 1}
+                    {/* Small red dot on thumbnail if validation fails */}
+                    {qError && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-brand-dark animate-pulse" />
+                    )}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="font-heading text-xs font-bold text-white truncate">
-                      {q.title || 'Untitled question'}
+                      {q.title || <span className="text-slate-500 italic">Empty question</span>}
                     </div>
                     <div className="text-[10px] text-slate-400 flex items-center gap-2 pt-0.5">
                       <span>{q.type}</span>
@@ -253,6 +302,14 @@ export default function CreateQuizStudio({ onClose }) {
         <div className="flex-1 flex flex-col bg-brand-dark overflow-y-auto p-8 lg:p-12">
           <div className="max-w-4xl mx-auto w-full space-y-8">
             
+            {/* Friendly inline hint if validation fails */}
+            {currentError && (
+              <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center gap-3 text-red-300 animate-in fade-in">
+                <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+                <span className="text-sm font-semibold">{currentError}</span>
+              </div>
+            )}
+
             {/* Question Text Area */}
             <div className="space-y-3">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
@@ -287,12 +344,12 @@ export default function CreateQuizStudio({ onClose }) {
               </div>
             </div>
 
-            {/* 4 Answer Tiles in Answer Colors */}
+            {/* Answer Tiles in Answer Colors */}
             <div className="space-y-3">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
-                Answer Options (Select correct toggle)
+                Answer Options ({currentQ.answers.length}) — Click the round button to mark correct answer
               </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`grid grid-cols-1 ${currentQ.answers.length === 2 ? 'max-w-2xl mx-auto' : 'md:grid-cols-2'} gap-4`}>
                 {currentQ.answers.map((ans) => (
                   <div 
                     key={ans.id}
