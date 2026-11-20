@@ -1,8 +1,119 @@
 import React, { useState } from 'react';
 import { 
   X, Plus, GripVertical, Image as ImageIcon, Check, Trash2, Copy, 
-  Settings, Clock, Award, Sparkles, ArrowLeft, Play, Save, AlertCircle 
+  Settings, Clock, Award, Sparkles, ArrowLeft, Play, Save, AlertCircle, Wand2 
 } from 'lucide-react';
+
+const sampleSpaceQuestions = [
+  {
+    id: 101,
+    title: 'Which planet in our solar system is known as the Red Planet?',
+    type: 'Quiz',
+    timeLimit: 10,
+    points: 'Standard',
+    image: null,
+    answers: [
+      { id: 1, text: 'Mars', shape: '▲', color: 'bg-red-500', isCorrect: true },
+      { id: 2, text: 'Venus', shape: '◆', color: 'bg-blue-500', isCorrect: false },
+      { id: 3, text: 'Jupiter', shape: '●', color: 'bg-amber-500', isCorrect: false },
+      { id: 4, text: 'Saturn', shape: '■', color: 'bg-emerald-500', isCorrect: false },
+    ]
+  },
+  {
+    id: 102,
+    title: 'What is the largest planet in our solar system?',
+    type: 'Quiz',
+    timeLimit: 15,
+    points: 'Standard',
+    image: null,
+    answers: [
+      { id: 1, text: 'Saturn', shape: '▲', color: 'bg-red-500', isCorrect: false },
+      { id: 2, text: 'Jupiter', shape: '◆', color: 'bg-blue-500', isCorrect: true },
+      { id: 3, text: 'Neptune', shape: '●', color: 'bg-amber-500', isCorrect: false },
+      { id: 4, text: 'Uranus', shape: '■', color: 'bg-emerald-500', isCorrect: false },
+    ]
+  },
+  {
+    id: 103,
+    title: 'Venus is the hottest planet in our solar system because of its thick greenhouse atmosphere.',
+    type: 'True/False',
+    timeLimit: 15,
+    points: 'Standard',
+    image: null,
+    answers: [
+      { id: 1, text: 'True', shape: '▲', color: 'bg-red-500', isCorrect: true },
+      { id: 2, text: 'False', shape: '◆', color: 'bg-blue-500', isCorrect: false },
+    ]
+  },
+  {
+    id: 104,
+    title: 'Which galaxy is the closest large spiral galaxy to the Milky Way?',
+    type: 'Quiz',
+    timeLimit: 20,
+    points: 'Double',
+    image: null,
+    answers: [
+      { id: 1, text: 'Andromeda', shape: '▲', color: 'bg-red-500', isCorrect: true },
+      { id: 2, text: 'Triangulum', shape: '◆', color: 'bg-blue-500', isCorrect: false },
+      { id: 3, text: 'Sombrero', shape: '●', color: 'bg-amber-500', isCorrect: false },
+      { id: 4, text: 'Whirlpool', shape: '■', color: 'bg-emerald-500', isCorrect: false },
+    ]
+  },
+  {
+    id: 105,
+    title: 'The Sun is classified as what type of star?',
+    type: 'Quiz',
+    timeLimit: 20,
+    points: 'Standard',
+    image: null,
+    answers: [
+      { id: 1, text: 'Red Giant', shape: '▲', color: 'bg-red-500', isCorrect: false },
+      { id: 2, text: 'White Dwarf', shape: '◆', color: 'bg-blue-500', isCorrect: false },
+      { id: 3, text: 'Yellow Dwarf (G-type)', shape: '●', color: 'bg-amber-500', isCorrect: true },
+      { id: 4, text: 'Blue Supergiant', shape: '■', color: 'bg-emerald-500', isCorrect: false },
+    ]
+  },
+  {
+    id: 106,
+    title: 'Black holes emit intense visible light directly from beyond their event horizons.',
+    type: 'True/False',
+    timeLimit: 15,
+    points: 'Standard',
+    image: null,
+    answers: [
+      { id: 1, text: 'True', shape: '▲', color: 'bg-red-500', isCorrect: false },
+      { id: 2, text: 'False', shape: '◆', color: 'bg-blue-500', isCorrect: true },
+    ]
+  },
+  {
+    id: 107,
+    title: 'Who was the first human to walk on the Moon in 1969?',
+    type: 'Quiz',
+    timeLimit: 15,
+    points: 'Standard',
+    image: null,
+    answers: [
+      { id: 1, text: 'Buzz Aldrin', shape: '▲', color: 'bg-red-500', isCorrect: false },
+      { id: 2, text: 'Yuri Gagarin', shape: '◆', color: 'bg-blue-500', isCorrect: false },
+      { id: 3, text: 'Neil Armstrong', shape: '●', color: 'bg-amber-500', isCorrect: true },
+      { id: 4, text: 'Michael Collins', shape: '■', color: 'bg-emerald-500', isCorrect: false },
+    ]
+  },
+  {
+    id: 108,
+    title: 'Light from the Sun takes approximately how long to reach Earth?',
+    type: 'Quiz',
+    timeLimit: 20,
+    points: 'Double',
+    image: null,
+    answers: [
+      { id: 1, text: '8 minutes', shape: '▲', color: 'bg-red-500', isCorrect: true },
+      { id: 2, text: '1 second', shape: '◆', color: 'bg-blue-500', isCorrect: false },
+      { id: 3, text: '24 hours', shape: '●', color: 'bg-amber-500', isCorrect: false },
+      { id: 4, text: '30 days', shape: '■', color: 'bg-emerald-500', isCorrect: false },
+    ]
+  }
+];
 
 const initialQuestions = [
   {
@@ -18,32 +129,6 @@ const initialQuestions = [
       { id: 3, text: 'Nucleus', shape: '●', color: 'bg-amber-500', isCorrect: false },
       { id: 4, text: 'Golgi apparatus', shape: '■', color: 'bg-emerald-500', isCorrect: false },
     ]
-  },
-  {
-    id: 2,
-    title: 'What is the chemical symbol for Gold?',
-    type: 'Quiz',
-    timeLimit: 10,
-    points: 'Double',
-    image: null,
-    answers: [
-      { id: 1, text: 'Ag', shape: '▲', color: 'bg-red-500', isCorrect: false },
-      { id: 2, text: 'Au', shape: '◆', color: 'bg-blue-500', isCorrect: true },
-      { id: 3, text: 'Fe', shape: '●', color: 'bg-amber-500', isCorrect: false },
-      { id: 4, text: 'Pb', shape: '■', color: 'bg-emerald-500', isCorrect: false },
-    ]
-  },
-  {
-    id: 3,
-    title: 'Photosynthesis converts light energy into chemical energy.',
-    type: 'True/False',
-    timeLimit: 15,
-    points: 'Standard',
-    image: null,
-    answers: [
-      { id: 1, text: 'True', shape: '▲', color: 'bg-red-500', isCorrect: true },
-      { id: 2, text: 'False', shape: '◆', color: 'bg-blue-500', isCorrect: false },
-    ]
   }
 ];
 
@@ -53,6 +138,12 @@ export default function CreateQuizStudio({ onClose }) {
   const [quizTitle, setQuizTitle] = useState('Untitled Science Blitz');
 
   const currentQ = questions[currentIndex] || questions[0];
+
+  const handleFillSampleQuiz = () => {
+    setQuestions(sampleSpaceQuestions);
+    setQuizTitle('Cosmic Space Exploration Blitz 🚀');
+    setCurrentIndex(0);
+  };
 
   // Helper to validate a question
   const getQuestionError = (q) => {
@@ -73,14 +164,12 @@ export default function CreateQuizStudio({ onClose }) {
     const updated = [...questions];
     let updatedQ = { ...updated[currentIndex], [field]: value };
 
-    // If changing type to True/False, ensure answers reduce to 2
     if (field === 'type' && value === 'True/False') {
       updatedQ.answers = [
         { id: 1, text: 'True', shape: '▲', color: 'bg-red-500', isCorrect: true },
         { id: 2, text: 'False', shape: '◆', color: 'bg-blue-500', isCorrect: false },
       ];
     } else if (field === 'type' && value !== 'True/False' && updatedQ.answers.length === 2) {
-      // Expand back to 4 if switching away from True/False
       updatedQ.answers = [
         { id: 1, text: 'Answer 1', shape: '▲', color: 'bg-red-500', isCorrect: true },
         { id: 2, text: 'Answer 2', shape: '◆', color: 'bg-blue-500', isCorrect: false },
@@ -101,7 +190,6 @@ export default function CreateQuizStudio({ onClose }) {
       if (ans.id === ansId) {
         return { ...ans, [field]: value };
       }
-      // If setting a new correct answer for single-choice quiz, unset others
       if (field === 'isCorrect' && value && updated[currentIndex].type !== 'Poll') {
         return { ...ans, isCorrect: false };
       }
@@ -183,6 +271,15 @@ export default function CreateQuizStudio({ onClose }) {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Fill with sample quiz button */}
+          <button 
+            onClick={handleFillSampleQuiz}
+            className="px-4 py-2 rounded-xl bg-brand-violet/20 hover:bg-brand-violet/30 border border-brand-violet/50 text-brand-lime font-semibold text-sm transition-all flex items-center gap-2 shadow-glow-violet"
+          >
+            <Wand2 className="w-4 h-4 text-brand-lime animate-spin" style={{ animationDuration: '8s' }} />
+            ✨ Fill with sample quiz
+          </button>
+
           <button 
             onClick={() => alert(`Quiz "${quizTitle}" saved successfully with ${questions.length} questions!`)}
             className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 font-semibold text-sm transition-all flex items-center gap-2"
@@ -244,7 +341,6 @@ export default function CreateQuizStudio({ onClose }) {
 
                   <div className="relative w-6 h-6 rounded-lg bg-brand-dark border border-white/10 flex items-center justify-center font-heading text-xs font-bold text-slate-300">
                     {idx + 1}
-                    {/* Small red dot on thumbnail if validation fails */}
                     {qError && (
                       <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-brand-dark animate-pulse" />
                     )}
