@@ -9,8 +9,10 @@ import Testimonials from './components/Testimonials';
 import CTA from './components/CTA';
 import Footer from './components/Footer';
 import GameModal from './components/GameModal';
+import CreateQuizStudio from './components/CreateQuizStudio';
 
 export default function App() {
+  const [view, setView] = useState('landing'); // 'landing' or 'studio'
   const [modalState, setModalState] = useState({ isOpen: false, mode: 'join', pin: '' });
 
   const handleJoinGame = (pin) => {
@@ -18,12 +20,17 @@ export default function App() {
   };
 
   const handleHostClick = () => {
-    setModalState({ isOpen: true, mode: 'host', pin: '' });
+    // Open studio editor when hosting or creating quiz
+    setView('studio');
   };
 
   const handleCloseModal = () => {
     setModalState({ isOpen: false, mode: 'join', pin: '' });
   };
+
+  if (view === 'studio') {
+    return <CreateQuizStudio onClose={() => setView('landing')} />;
+  }
 
   return (
     <div className="min-h-screen bg-brand-dark text-slate-100 font-sans selection:bg-brand-lime selection:text-brand-dark">
