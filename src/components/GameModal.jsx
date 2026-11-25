@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ArrowRight, Zap, Trophy, Sparkles, CheckCircle2, ShieldCheck, RefreshCw, QrCode, Users, Play, Radio, Award, BarChart3, Flame, TrendingUp } from 'lucide-react';
+import { X, ArrowRight, Zap, Trophy, Sparkles, CheckCircle2, ShieldCheck, RefreshCw, QrCode, Users, Play, Radio, Award, BarChart3, Flame, TrendingUp, Pause, SkipForward, RotateCcw } from 'lucide-react';
 
 const blitzerAvatars = [
   { id: 1, emoji: '🦊', name: 'Foxy Blitz', rarity: 'Common', color: 'border-amber-500/50 bg-amber-500/10 text-amber-300' },
@@ -46,6 +46,17 @@ const defaultSpaceQuiz = {
         { id: 3, text: 'Mars', shape: '●', color: 'bg-amber-500', isCorrect: false },
         { id: 4, text: 'Sun', shape: '■', color: 'bg-emerald-500', isCorrect: false },
       ]
+    },
+    {
+      id: 3,
+      title: 'Which galaxy is the nearest large spiral galaxy to the Milky Way?',
+      timeLimit: 15,
+      answers: [
+        { id: 1, text: 'Andromeda', shape: '▲', color: 'bg-red-500', isCorrect: true },
+        { id: 2, text: 'Sombrero', shape: '◆', color: 'bg-blue-500', isCorrect: false },
+        { id: 3, text: 'Triangulum', shape: '●', color: 'bg-amber-500', isCorrect: false },
+        { id: 4, text: 'Whirlpool', shape: '■', color: 'bg-emerald-500', isCorrect: false },
+      ]
     }
   ]
 };
@@ -65,8 +76,10 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
   // Selected avatar state
   const [selectedAvatar, setSelectedAvatar] = useState(blitzerAvatars[4]); // Neon Unicorn default
 
-  // Game States: 'lobby' | 'question' | 'feedback' | 'leaderboard'
+  // Game States: 'lobby' | 'question' | 'feedback' | 'leaderboard' | 'final'
   const [gameState, setGameState] = useState('lobby');
+  const [isPaused, setIsPaused] = useState(false);
+
   const [players, setPlayers] = useState([
     { id: 1, name: 'TurboCoder', avatar: blitzerAvatars[0], score: 2400 },
     { id: 2, name: 'NeuralKnight', avatar: blitzerAvatars[5], score: 1950 },
@@ -108,10 +121,13 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
     }
   }, [mode, gameState]);
 
-  // Countdown timer & fake player answering simulation during 'question' state
+  // Countdown timer & fake player answering simulation during 'question' state (with Pause check & bug-free cleanup)
   useEffect(() => {
-    if (gameState === 'question') {
-      const timer = setInterval(() => {
+    let timer = null;
+    let fakeAnswerInterval = null;
+
+    if (gameState === 'question' && !isPaused) {
+      timer = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
@@ -122,7 +138,7 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
         });
       }, 1000);
 
-      const fakeAnswerInterval = setInterval(() => {
+      fakeAnswerInterval = setInterval(() => {
         setAnsweredPlayersCount((prevCount) => {
           if (prevCount >= players.length) {
             clearInterval(fakeAnswerInterval);
@@ -137,18 +153,18 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
           return prevCount + 1;
         });
       }, 1000);
-
-      return () => {
-        clearInterval(timer);
-        clearInterval(fakeAnswerInterval);
-      };
     }
-  }, [gameState, players.length, currentQuestion.answers.length]);
+
+    return () => {
+      if (timer) clearInterval(timer);
+      if (fakeAnswerInterval) clearInterval(fakeAnswerInterval);
+    };
+  }, [gameState, isPaused, players.length, currentQuestion.answers.length]);
 
   // Keyboard listener for keys 1-4 when answering question
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (gameState === 'question' && userAnswer === null) {
+      if (gameState === 'question' && !isPaused && userAnswer === null) {
         if (['1', '2', '3', '4'].includes(e.key)) {
           const index = parseInt(e.key) - 1;
           if (currentQuestion.answers[index]) {
@@ -159,17 +175,18 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState, userAnswer, currentQuestion]);
+  }, [gameState, isPaused, userAnswer, currentQuestion]);
 
   const handleStartGame = () => {
     if (players.length >= 3) {
       setCurrentQuestionIndex(0);
-      setTimeLeft(currentQuestion.timeLimit || 15);
+      setTimeLeft(activeQuiz.questions[0].timeLimit || 15);
       setUserAnswer(null);
       setAnswerCounts([0, 0, 0, 0]);
       setAnsweredPlayersCount(0);
       setUserScore(0);
       setStreakCount(0);
+      setIsPaused(false);
       setGameState('question');
     }
   };
@@ -204,9 +221,8 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
     }
     setLastRoundScore(earned);
 
-    // Update player scores & transition to feedback panel
     updateLeaderboardScores(isCorrect ? earned : 0);
-    setTimeout(() => setGameState('feedback'), 600);
+    setTimeout(() => setGameState('feedback'), 500);
   };
 
   const handleTimeOut = () => {
@@ -219,13 +235,20 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
     }
   };
 
+  const handleSkipQuestion = () => {
+    // Instantly move to feedback
+    setWasCorrectLastRound(false);
+    setLastRoundScore(0);
+    updateLeaderboardScores(0);
+    setGameState('feedback');
+  };
+
   const updateLeaderboardScores = (userEarned) => {
     setPlayers(prev => {
       const updated = prev.map(p => ({
         ...p,
-        score: p.score + Math.floor(Math.random() * 600) + 200
+        score: p.score + Math.floor(Math.random() * 500) + 150
       }));
-      // Add user temporarily or include user in ranking
       return updated.sort((a, b) => b.score - a.score);
     });
   };
@@ -236,19 +259,21 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
 
   const handleNextQuestion = () => {
     if (currentQuestionIndex + 1 < activeQuiz.questions.length) {
-      setCurrentQuestionIndex(prev => prev + 1);
-      const nextQ = activeQuiz.questions[currentQuestionIndex + 1];
+      const nextIdx = currentQuestionIndex + 1;
+      setCurrentQuestionIndex(nextIdx);
+      const nextQ = activeQuiz.questions[nextIdx];
       setTimeLeft(nextQ.timeLimit || 15);
       setUserAnswer(null);
       setAnswerCounts([0, 0, 0, 0]);
       setAnsweredPlayersCount(0);
+      setIsPaused(false);
       setGameState('question');
     } else {
-      setGameState('lobby');
+      // Reached end of quiz -> Final Results screen
+      setGameState('final');
     }
   };
 
-  // Find correct answer text for feedback panel
   const correctAnswerObj = currentQuestion.answers.find(a => a.isCorrect) || currentQuestion.answers[0];
 
   return (
@@ -364,11 +389,11 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
             {gameState === 'question' && (
               <div className="space-y-6 animate-in zoom-in-95">
                 
-                {/* Top Bar: Question Counter, Countdown Ring, Score & Streak */}
-                <div className="flex items-center justify-between bg-brand-dark/80 p-4 rounded-2xl border border-white/10">
-                  <div className="flex items-center gap-3">
-                    <span className="px-3 py-1 rounded-full bg-brand-violet/20 border border-brand-violet/40 text-brand-lime text-xs font-bold">
-                      Q{currentQuestionIndex + 1}/{activeQuiz.questions.length}
+                {/* Top Bar: Progress Indicator ("Question 3 of 8"), Countdown Ring, Score, Pause / Skip controls */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-brand-dark/80 p-4 rounded-2xl border border-white/10">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="px-3.5 py-1.5 rounded-full bg-brand-violet/20 border border-brand-violet/40 text-brand-lime text-xs font-bold uppercase tracking-wider">
+                      Question {currentQuestionIndex + 1} of {activeQuiz.questions.length}
                     </span>
                     <span className="text-xs text-slate-300 font-bold flex items-center gap-1">
                       Score: <span className="text-brand-lime font-heading text-sm">{userScore}</span>
@@ -378,6 +403,27 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                         <Flame className="w-3.5 h-3.5 fill-orange-400" /> {streakCount} Streak
                       </span>
                     )}
+                  </div>
+
+                  {/* Host Controls: Pause & Skip */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsPaused(!isPaused)}
+                      className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
+                        isPaused ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse' : 'bg-white/5 text-slate-300 border-white/15 hover:bg-white/10'
+                      }`}
+                    >
+                      <Pause className="w-3.5 h-3.5" />
+                      {isPaused ? 'Resume' : 'Pause'}
+                    </button>
+
+                    <button
+                      onClick={handleSkipQuestion}
+                      className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/15 text-xs font-bold flex items-center gap-1.5 transition-all"
+                    >
+                      <SkipForward className="w-3.5 h-3.5" />
+                      Skip
+                    </button>
                   </div>
 
                   {/* Circular SVG Countdown Ring */}
@@ -406,10 +452,16 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                       />
                     </svg>
                     <div className={`absolute font-heading font-extrabold text-lg ${timeLeft <= 5 ? 'text-red-400 animate-bounce' : 'text-white'}`}>
-                      {timeLeft}s
+                      {isPaused ? '⏸' : `${timeLeft}s`}
                     </div>
                   </div>
                 </div>
+
+                {isPaused && (
+                  <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center text-amber-300 text-xs font-bold animate-pulse">
+                    Game Paused by Host. Timer & Submissions suspended.
+                  </div>
+                )}
 
                 {/* Big Question Text */}
                 <div className="p-6 rounded-3xl bg-gradient-to-r from-brand-violet/20 via-purple-900/30 to-brand-dark border border-brand-violet/40 text-center shadow-xl">
@@ -425,12 +477,12 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                     return (
                       <div
                         key={ans.id}
-                        onClick={() => handleAnswerSelect(idx)}
+                        onClick={() => !isPaused && handleAnswerSelect(idx)}
                         className={`relative p-6 rounded-2xl border-2 transition-all duration-200 cursor-pointer flex items-center justify-between group overflow-hidden ${ans.color} bg-opacity-15 hover:bg-opacity-25 ${
                           isSelected 
                             ? 'border-brand-lime ring-4 ring-brand-lime/30 scale-[1.02]' 
                             : 'border-white/15 bg-brand-dark/70 hover:border-brand-violet/60'
-                        }`}
+                        } ${isPaused ? 'opacity-60 cursor-not-allowed' : ''}`}
                       >
                         <div className="flex items-center gap-4">
                           <span className={`w-12 h-12 rounded-xl flex items-center justify-center font-heading text-2xl font-black ${ans.color} text-white shadow-lg`}>
@@ -455,7 +507,7 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                 </div>
 
                 <div className="text-center text-xs text-slate-400">
-                  Tip: You can click any tile or press keys <span className="text-brand-lime font-bold">1</span>, <span className="text-brand-lime font-bold">2</span>, <span className="text-brand-lime font-bold">3</span>, <span className="text-brand-lime font-bold">4</span> on your keyboard.
+                  Tip: Click any tile or press keys <span className="text-brand-lime font-bold">1</span>–<span className="text-brand-lime font-bold">4</span>.
                 </div>
 
               </div>
@@ -532,7 +584,6 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                 <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
                   {players.slice(0, 5).map((player, idx) => {
                     const rank = idx + 1;
-                    const isTop3 = rank <= 3;
                     return (
                       <div
                         key={player.id}
@@ -585,8 +636,65 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                     onClick={handleNextQuestion}
                     className="btn-tactile bg-brand-lime hover:bg-brand-limeHover text-brand-dark font-heading font-extrabold px-8 py-4 rounded-2xl shadow-tactile-lime border-b-4 border-lime-700 text-base flex items-center gap-2"
                   >
-                    Next Question
+                    {currentQuestionIndex + 1 < activeQuiz.questions.length ? 'Next Question' : 'View Final Results'}
                     <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+
+              </div>
+            )}
+
+            {/* FINAL RESULTS SCREEN */}
+            {gameState === 'final' && (
+              <div className="text-center space-y-6 py-8 animate-in zoom-in-95">
+                <div className="w-28 h-28 mx-auto rounded-3xl bg-brand-lime/20 border-2 border-brand-lime flex items-center justify-center text-6xl shadow-glow-lime animate-bounce" style={{ animationDuration: '3s' }}>
+                  🏆
+                </div>
+
+                <div className="space-y-3">
+                  <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-brand-violet/20 text-brand-lime text-xs font-bold uppercase tracking-wider border border-brand-violet/40">
+                    <Award className="w-4 h-4 text-brand-lime" />
+                    Game Completed Successfully
+                  </div>
+                  <h3 className="font-heading text-4xl sm:text-5xl font-extrabold text-white">
+                    Final Arena Results! 🎉
+                  </h3>
+                  <p className="text-slate-300 text-base max-w-md mx-auto">
+                    You earned a total score of <span className="text-brand-lime font-bold font-heading text-xl">{userScore} points</span> across {activeQuiz.questions.length} questions.
+                  </p>
+                </div>
+
+                <div className="p-6 rounded-3xl bg-brand-dark border border-white/10 max-w-md mx-auto space-y-3">
+                  <div className="text-xs uppercase tracking-widest text-slate-400 font-bold">Top Champion of the Match</div>
+                  <div className="flex items-center justify-center gap-3">
+                    <span className="text-4xl">🦄</span>
+                    <div className="text-left">
+                      <div className="font-heading font-bold text-lg text-white">{players[0]?.name || 'TurboCoder'}</div>
+                      <div className="text-xs text-brand-lime font-extrabold">{players[0]?.score || 3500} pts</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    onClick={() => {
+                      setGameState('lobby');
+                      setPlayers([
+                        { id: 1, name: 'TurboCoder', avatar: blitzerAvatars[0], score: 2400 },
+                        { id: 2, name: 'NeuralKnight', avatar: blitzerAvatars[5], score: 1950 },
+                        { id: 3, name: 'QuantumQueen', avatar: blitzerAvatars[2], score: 1800 },
+                      ]);
+                    }}
+                    className="btn-tactile bg-brand-violet hover:bg-brand-violetDark text-white font-heading font-extrabold px-6 py-3.5 rounded-xl shadow-tactile border-b-4 border-violet-900 text-sm flex items-center justify-center gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Play Again
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="px-6 py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-sm border border-white/10 transition-all"
+                  >
+                    Exit to Home
                   </button>
                 </div>
 
