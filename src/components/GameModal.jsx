@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ArrowRight, Zap, Trophy, Sparkles, CheckCircle2, ShieldCheck, RefreshCw } from 'lucide-react';
+import { X, ArrowRight, Zap, Trophy, Sparkles, CheckCircle2, ShieldCheck, RefreshCw, QrCode, Users, Play, Radio, Award, BarChart3 } from 'lucide-react';
 
 const blitzerAvatars = [
   { id: 1, emoji: '🦊', name: 'Foxy Blitz', rarity: 'Common', color: 'border-amber-500/50 bg-amber-500/10 text-amber-300' },
@@ -16,11 +16,34 @@ const blitzerAvatars = [
   { id: 12, emoji: '🐉', name: 'Plasma Dragon', rarity: 'Legendary', color: 'border-brand-lime/70 bg-brand-lime/20 text-brand-lime' },
 ];
 
-export default function GameModal({ mode, initialPin = '', onClose }) {
-  const [step, setStep] = useState(mode === 'join' ? 'pin' : 'host');
+const fakeNicknames = [
+  'TurboCoder', 'PixelNinja', 'QuantumQueen', 'MegaByte', 'AlphaGlitch',
+  'CosmicCoder', 'NeuralKnight', 'VelocityVortex', 'HyperHacker', 'SonicSprite',
+  'PlasmaPioneer', 'StellarScribe', 'MatrixMaster', 'AstroAce', 'BinaryBard'
+];
+
+const defaultSpaceQuiz = {
+  title: 'Cosmic Space Exploration Blitz 🚀',
+  questions: [
+    {
+      id: 1,
+      title: 'Which planet in our solar system is known as the Red Planet?',
+      timeLimit: 15,
+      answers: [
+        { id: 1, text: 'Mars', shape: '▲', color: 'bg-red-500', isCorrect: true },
+        { id: 2, text: 'Venus', shape: '◆', color: 'bg-blue-500', isCorrect: false },
+        { id: 3, text: 'Jupiter', shape: '●', color: 'bg-amber-500', isCorrect: false },
+        { id: 4, text: 'Saturn', shape: '■', color: 'bg-emerald-500', isCorrect: false },
+      ]
+    }
+  ]
+};
+
+export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQuiz, onClose }) {
+  const [step, setStep] = useState(mode === 'join' ? 'pin' : 'lobby');
   
   // 6 PIN boxes state
-  const [pinDigits, setPinDigits] = useState(['', '', '', '', '', '']);
+  const [pinDigits, setPinDigits] = useState(['1', '9', '9', '2', '8', '1']);
   const [pinError, setPinError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const inputRefs = useRef([]);
@@ -30,6 +53,133 @@ export default function GameModal({ mode, initialPin = '', onClose }) {
 
   // Selected avatar state
   const [selectedAvatar, setSelectedAvatar] = useState(blitzerAvatars[4]); // Neon Unicorn default
+
+  // Host Lobby & Game State ('lobby' | 'question' | 'reveal')
+  const [gameState, setGameState] = useState('lobby');
+  const [players, setPlayers] = useState([
+    { id: 1, name: 'TurboCoder', avatar: blitzerAvatars[0] },
+    { id: 2, name: 'NeuralKnight', avatar: blitzerAvatars[5] },
+    { id: 3, name: 'QuantumQueen', avatar: blitzerAvatars[2] }
+  ]);
+
+  // Active Question State
+  const activeQuiz = quiz && quiz.questions && quiz.questions.length > 0 ? quiz : defaultSpaceQuiz;
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const currentQuestion = activeQuiz.questions[currentQuestionIndex] || activeQuiz.questions[0];
+  
+  const [timeLeft, setTimeLeft] = useState(currentQuestion.timeLimit || 15);
+  const [userAnswer, setUserAnswer] = useState(null); // index 0-3
+  const [answerCounts, setAnswerCounts] = useState([0, 0, 0, 0]);
+  const [answeredPlayersCount, setAnsweredPlayersCount] = useState(0);
+
+  // Simulate new players joining in lobby every 1.5 seconds
+  useEffect(() => {
+    if (mode === 'host' && gameState === 'lobby') {
+      const interval = setInterval(() => {
+        setPlayers((prev) => {
+          if (prev.length >= 16) return prev;
+          const availableNicknames = fakeNicknames.filter(n => !prev.some(p => p.name === n));
+          if (availableNicknames.length === 0) return prev;
+          const randomName = availableNicknames[Math.floor(Math.random() * availableNicknames.length)];
+          const randomAvatar = blitzerAvatars[Math.floor(Math.random() * blitzerAvatars.length)];
+          return [...prev, { id: Date.now(), name: randomName, avatar: randomAvatar }];
+        });
+      }, 1500);
+      return () => clearInterval(interval);
+    }
+  }, [mode, gameState]);
+
+  // Countdown timer & fake player answering simulation during 'question' state
+  useEffect(() => {
+    if (gameState === 'question') {
+      const timer = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setGameState('reveal');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Simulate fake players answering progressively
+      const fakeAnswerInterval = setInterval(() => {
+        setAnsweredPlayersCount((prevCount) => {
+          if (prevCount >= players.length) {
+            clearInterval(fakeAnswerInterval);
+            setTimeout(() => setGameState('reveal'), 500);
+            return prevCount;
+          }
+          // Increment random answer choice count
+          const randomChoice = Math.floor(Math.random() * currentQuestion.answers.length);
+          setAnswerCounts((counts) => {
+            const newCounts = [...counts];
+            newCounts[randomChoice] += 1;
+            return newCounts;
+          });
+          return prevCount + 1;
+        });
+      }, 1200);
+
+      return () => {
+        clearInterval(timer);
+        clearInterval(fakeAnswerInterval);
+      };
+    }
+  }, [gameState, players.length, currentQuestion.answers.length]);
+
+  // Keyboard listener for keys 1-4 when answering question
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (gameState === 'question' && userAnswer === null) {
+        if (['1', '2', '3', '4'].includes(e.key)) {
+          const index = parseInt(e.key) - 1;
+          if (currentQuestion.answers[index]) {
+            handleAnswerSelect(index);
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameState, userAnswer, currentQuestion]);
+
+  const handleStartGame = () => {
+    if (players.length >= 3) {
+      setCurrentQuestionIndex(0);
+      setTimeLeft(currentQuestion.timeLimit || 15);
+      setUserAnswer(null);
+      setAnswerCounts([0, 0, 0, 0]);
+      setAnsweredPlayersCount(0);
+      setGameState('question');
+    }
+  };
+
+  const handleAnswerSelect = (index) => {
+    if (userAnswer !== null) return;
+    setUserAnswer(index);
+    setAnswerCounts((counts) => {
+      const newCounts = [...counts];
+      newCounts[index] += 1;
+      return newCounts;
+    });
+    setAnsweredPlayersCount((prev) => Math.min(prev + 1, players.length));
+  };
+
+  const handleNextQuestion = () => {
+    if (currentQuestionIndex + 1 < activeQuiz.questions.length) {
+      setCurrentQuestionIndex(prev => prev + 1);
+      setTimeLeft(activeQuiz.questions[currentQuestionIndex + 1].timeLimit || 15);
+      setUserAnswer(null);
+      setAnswerCounts([0, 0, 0, 0]);
+      setAnsweredPlayersCount(0);
+      setGameState('question');
+    } else {
+      // Back to lobby or restart
+      setGameState('lobby');
+    }
+  };
 
   // Initialize pin digits if initialPin is provided
   useEffect(() => {
@@ -67,16 +217,12 @@ export default function GameModal({ mode, initialPin = '', onClose }) {
       return;
     }
 
-    // Rule: Any PIN starting with '1' is valid; any other PIN shakes the boxes and shows "Hmm, we can't find that game"
     if (fullPin.startsWith('1')) {
       setPinError(false);
       setStep('nickname');
     } else {
       setPinError(true);
       setErrorMessage("Hmm, we can't find that game");
-      setTimeout(() => {
-        // clear error after animation
-      }, 500);
     }
   };
 
@@ -96,7 +242,7 @@ export default function GameModal({ mode, initialPin = '', onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-xl bg-brand-cardDark border border-brand-violet/40 rounded-3xl p-8 sm:p-10 shadow-2xl text-white overflow-hidden">
+      <div className={`relative w-full ${mode === 'host' ? 'max-w-4xl' : 'max-w-xl'} bg-brand-cardDark border border-brand-violet/40 rounded-3xl p-6 sm:p-10 shadow-2xl text-white overflow-hidden transition-all duration-300`}>
         
         {/* Glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-brand-violet/25 rounded-full blur-3xl pointer-events-none" />
@@ -109,8 +255,287 @@ export default function GameModal({ mode, initialPin = '', onClose }) {
           <X className="w-5 h-5" />
         </button>
 
+        {/* HOST MODE */}
+        {mode === 'host' && (
+          <div className="space-y-6 animate-in zoom-in-95">
+            
+            {/* LOBBY STATE */}
+            {gameState === 'lobby' && (
+              <>
+                <div className="relative p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-brand-dark via-[#180a3a] to-purple-950 border border-brand-violet/40 shadow-2xl overflow-hidden">
+                  <div className="absolute top-0 right-0 w-96 h-96 bg-brand-lime/10 rounded-full blur-3xl pointer-events-none" />
+                  
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+                    
+                    <div className="space-y-2 text-center md:text-left">
+                      <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-brand-lime/10 text-brand-lime text-xs font-bold uppercase tracking-wider border border-brand-lime/30">
+                        <Radio className="w-3.5 h-3.5 animate-pulse text-brand-lime" />
+                        Live Host Lobby • {activeQuiz.title}
+                      </div>
+                      <div className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Join at brainblitz.live with PIN</div>
+                      <div className="font-heading text-5xl sm:text-6xl font-black text-brand-lime tracking-widest drop-shadow-[0_0_25px_rgba(163,230,53,0.5)]">
+                        199 281
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-6">
+                      <div className="bg-white p-3 rounded-2xl shadow-xl flex flex-col items-center justify-center border-2 border-brand-lime/50">
+                        <QrCode className="w-16 h-16 text-slate-950" />
+                        <span className="text-[10px] font-bold text-slate-700 mt-1 uppercase tracking-wider">Scan to Join</span>
+                      </div>
+
+                      <div className="bg-brand-dark/80 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/15 text-center space-y-1">
+                        <div className="flex items-center justify-center gap-2 text-brand-lime">
+                          <Users className="w-5 h-5" />
+                          <span className="font-heading text-3xl font-extrabold">{players.length}</span>
+                        </div>
+                        <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Players Joined</div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-brand-lime" />
+                      Connected Blitzers ({players.length})
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {players.length < 3 ? 'Waiting for at least 3 players to start...' : '✨ Ready to launch!'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin">
+                    {players.map((player) => (
+                      <div
+                        key={player.id}
+                        className="p-3 rounded-2xl bg-brand-dark/80 border border-brand-violet/30 flex items-center gap-3 animate-in zoom-in-50 duration-300 hover:border-brand-lime transition-all shadow-lg group"
+                      >
+                        <span className="text-3xl group-hover:scale-125 transition-transform select-none">
+                          {player.avatar.emoji}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-heading font-bold text-sm text-white truncate">
+                            {player.name}
+                          </div>
+                          <div className="text-[10px] text-brand-lime font-extrabold truncate">
+                            {player.avatar.name}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={handleStartGame}
+                    disabled={players.length < 3}
+                    className={`w-full font-heading font-extrabold py-5 rounded-2xl text-lg sm:text-xl flex items-center justify-center gap-3 transition-all duration-300 ${
+                      players.length >= 3
+                        ? 'btn-tactile bg-brand-lime hover:bg-brand-limeHover text-brand-dark shadow-tactile-lime border-b-4 border-lime-700 cursor-pointer animate-pulse'
+                        : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    <Play className="w-6 h-6 fill-current" />
+                    {players.length < 3 ? `Waiting for players (${players.length}/3 minimum)...` : 'Start Game Arena! 🚀'}
+                  </button>
+                  <p className="text-center text-xs text-slate-400 mt-2">
+                    {players.length < 3 ? 'Simulating players joining every 1–2 seconds...' : 'All systems go! Click Start when you are ready.'}
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* QUESTION STATE */}
+            {gameState === 'question' && (
+              <div className="space-y-6 animate-in zoom-in-95">
+                
+                {/* Top Bar: Question Counter, Countdown Ring, Answers Ticker */}
+                <div className="flex items-center justify-between bg-brand-dark/80 p-4 rounded-2xl border border-white/10">
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 rounded-full bg-brand-violet/20 border border-brand-violet/40 text-brand-lime text-xs font-bold">
+                      Question {currentQuestionIndex + 1} of {activeQuiz.questions.length}
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium">
+                      Answers: <strong className="text-brand-lime">{answeredPlayersCount}</strong> / {players.length}
+                    </span>
+                  </div>
+
+                  {/* Circular SVG Countdown Ring */}
+                  <div className="relative w-16 h-16 flex items-center justify-center">
+                    <svg className="w-16 h-16 transform -rotate-90">
+                      <circle
+                        cx="32"
+                        cy="32"
+                        r="26"
+                        stroke="currentColor"
+                        strokeWidth="5"
+                        className="text-slate-800 fill-none"
+                      />
+                      <circle
+                        cx="32"
+                        cy="32"
+                        r="26"
+                        stroke="currentColor"
+                        strokeWidth="5"
+                        strokeDasharray={2 * Math.PI * 26}
+                        strokeDashoffset={2 * Math.PI * 26 * (1 - timeLeft / (currentQuestion.timeLimit || 15))}
+                        strokeLinecap="round"
+                        className={`fill-none transition-all duration-1000 ${
+                          timeLeft <= 5 ? 'text-red-500 animate-pulse' : 'text-brand-lime'
+                        }`}
+                      />
+                    </svg>
+                    <div className={`absolute font-heading font-extrabold text-lg ${timeLeft <= 5 ? 'text-red-400 animate-bounce' : 'text-white'}`}>
+                      {timeLeft}s
+                    </div>
+                  </div>
+                </div>
+
+                {/* Big Question Text */}
+                <div className="p-6 rounded-3xl bg-gradient-to-r from-brand-violet/20 via-purple-900/30 to-brand-dark border border-brand-violet/40 text-center shadow-xl">
+                  <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-white leading-snug">
+                    {currentQuestion.title}
+                  </h2>
+                </div>
+
+                {/* 4 Big Answer Tiles */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {currentQuestion.answers.map((ans, idx) => {
+                    const isSelected = userAnswer === idx;
+                    return (
+                      <div
+                        key={ans.id}
+                        onClick={() => handleAnswerSelect(idx)}
+                        className={`relative p-6 rounded-2xl border-2 transition-all duration-200 cursor-pointer flex items-center justify-between group overflow-hidden ${ans.color} bg-opacity-15 hover:bg-opacity-25 ${
+                          isSelected 
+                            ? 'border-brand-lime ring-4 ring-brand-lime/30 scale-[1.02]' 
+                            : 'border-white/15 bg-brand-dark/70 hover:border-brand-violet/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <span className={`w-12 h-12 rounded-xl flex items-center justify-center font-heading text-2xl font-black ${ans.color} text-white shadow-lg`}>
+                            {ans.shape}
+                          </span>
+                          <div>
+                            <span className="text-xs text-slate-400 font-bold block mb-0.5">Key [{idx + 1}]</span>
+                            <span className="font-heading font-bold text-lg sm:text-xl text-white">
+                              {ans.text}
+                            </span>
+                          </div>
+                        </div>
+
+                        {isSelected && (
+                          <div className="px-3 py-1 rounded-full bg-brand-lime text-brand-dark font-heading font-extrabold text-xs shadow-lg animate-in zoom-in">
+                            Selected ✓
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="text-center text-xs text-slate-400">
+                  Tip: You can click any tile or press keys <span className="text-brand-lime font-bold">1</span>, <span className="text-brand-lime font-bold">2</span>, <span className="text-brand-lime font-bold">3</span>, <span className="text-brand-lime font-bold">4</span> on your keyboard.
+                </div>
+
+              </div>
+            )}
+
+            {/* REVEAL STATE */}
+            {gameState === 'reveal' && (
+              <div className="space-y-6 animate-in zoom-in-95">
+                
+                <div className="text-center space-y-2">
+                  <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold uppercase tracking-wider border border-emerald-500/30">
+                    <Award className="w-4 h-4 text-emerald-400" />
+                    Time's Up • Results Reveal
+                  </div>
+                  <h3 className="font-heading text-3xl font-extrabold text-white">
+                    {userAnswer !== null && currentQuestion.answers[userAnswer]?.isCorrect ? 'Correct! 🎉 +1,000 pts' : userAnswer !== null ? 'Incorrect! ❌' : 'Time ran out!'}
+                  </h3>
+                </div>
+
+                {/* Answer Tiles Reveal Grid (Correct highlighted, incorrect faded) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {currentQuestion.answers.map((ans, idx) => {
+                    const isCorrect = ans.isCorrect;
+                    const count = answerCounts[idx] || 0;
+                    const maxCount = Math.max(...answerCounts, 1);
+                    const percentage = Math.round((count / Math.max(answeredPlayersCount, 1)) * 100);
+
+                    return (
+                      <div
+                        key={ans.id}
+                        className={`p-5 rounded-2xl border-2 transition-all duration-300 relative overflow-hidden flex flex-col justify-between gap-4 ${
+                          isCorrect 
+                            ? 'border-brand-lime bg-brand-lime/10 shadow-[0_0_30px_rgba(163,230,53,0.3)] scale-[1.02]' 
+                            : 'border-white/10 bg-brand-dark/80 opacity-40 grayscale'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className={`w-10 h-10 rounded-xl flex items-center justify-center font-heading text-xl font-bold ${ans.color} text-white`}>
+                              {ans.shape}
+                            </span>
+                            <span className="font-heading font-bold text-lg text-white">
+                              {ans.text}
+                            </span>
+                          </div>
+
+                          {isCorrect && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-brand-lime text-brand-dark font-heading font-extrabold text-xs shadow-md">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Correct Answer
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Bar Chart representing how many picked this */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs font-bold text-slate-300">
+                            <span>{count} players ({percentage}%)</span>
+                            {userAnswer === idx && <span className="text-brand-lime">Your Choice</span>}
+                          </div>
+                          <div className="w-full h-3 bg-brand-dark rounded-full overflow-hidden border border-white/10">
+                            <div 
+                              className={`h-full transition-all duration-700 rounded-full ${isCorrect ? 'bg-brand-lime' : 'bg-slate-600'}`}
+                              style={{ width: `${Math.max(percentage, 5)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-4 flex items-center justify-between">
+                  <button
+                    onClick={() => setGameState('lobby')}
+                    className="px-6 py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-sm border border-white/10 transition-all"
+                  >
+                    Back to Lobby
+                  </button>
+
+                  <button
+                    onClick={handleNextQuestion}
+                    className="btn-tactile bg-brand-lime hover:bg-brand-limeHover text-brand-dark font-heading font-extrabold px-8 py-4 rounded-2xl shadow-tactile-lime border-b-4 border-lime-700 text-base flex items-center gap-2"
+                  >
+                    Next Question
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+
+              </div>
+            )}
+
+          </div>
+        )}
+
         {/* STEP 1: 6-Digit PIN Boxes */}
-        {step === 'pin' && (
+        {mode === 'join' && step === 'pin' && (
           <div className="space-y-8 animate-in zoom-in-95">
             <div className="space-y-3 text-center">
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-brand-lime/10 text-brand-lime text-xs font-bold uppercase tracking-wider border border-brand-lime/30">
@@ -171,7 +596,7 @@ export default function GameModal({ mode, initialPin = '', onClose }) {
         )}
 
         {/* STEP 2: Pick a Nickname */}
-        {step === 'nickname' && (
+        {mode === 'join' && step === 'nickname' && (
           <form onSubmit={handleNicknameSubmit} className="space-y-8 animate-in zoom-in-95">
             <div className="space-y-3 text-center">
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-brand-violet/20 text-brand-lime text-xs font-bold uppercase tracking-wider border border-brand-violet/40">
@@ -214,7 +639,7 @@ export default function GameModal({ mode, initialPin = '', onClose }) {
         )}
 
         {/* STEP 3: Avatar Picker (12 Cute Blitzers with rarity tags) */}
-        {step === 'avatar' && (
+        {mode === 'join' && step === 'avatar' && (
           <div className="space-y-6 animate-in zoom-in-95">
             <div className="space-y-2 text-center">
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-brand-violet/20 text-brand-lime text-xs font-bold uppercase tracking-wider border border-brand-violet/40">
@@ -268,7 +693,7 @@ export default function GameModal({ mode, initialPin = '', onClose }) {
         )}
 
         {/* STEP 4: Waiting Screen ("You're in! 🎉 See your name on the screen?") */}
-        {step === 'waiting' && (
+        {mode === 'join' && step === 'waiting' && (
           <div className="text-center space-y-6 py-4 animate-in zoom-in-95">
             
             {/* Gently pulsing avatar */}
@@ -309,55 +734,10 @@ export default function GameModal({ mode, initialPin = '', onClose }) {
                 className="px-6 py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-sm border border-white/10 transition-all flex items-center justify-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" />
-                Join Another Game
+                Join Another Game & Another Game
               </button>
             </div>
 
-          </div>
-        )}
-
-        {/* HOST MODE */}
-        {mode === 'host' && step === 'host' && (
-          <div className="space-y-6 animate-in zoom-in-95">
-            <div className="space-y-2 text-center">
-              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-brand-violet/20 text-brand-lime text-xs font-bold uppercase tracking-wider border border-brand-violet/40">
-                <Sparkles className="w-3.5 h-3.5" />
-                Teacher Host Dashboard
-              </div>
-              <h3 className="font-heading text-3xl font-extrabold">
-                Host a Live Game
-              </h3>
-              <p className="text-slate-300 text-sm">
-                Select a game mode to generate your active room PIN.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div 
-                onClick={onClose}
-                className="p-5 rounded-2xl bg-brand-dark border border-brand-violet/40 hover:border-brand-lime cursor-pointer transition-all space-y-2 group"
-              >
-                <div className="text-3xl">🛡️</div>
-                <h4 className="font-heading font-bold text-white group-hover:text-brand-lime">Tower Defense</h4>
-                <p className="text-xs text-slate-400">Strategy & turret building</p>
-              </div>
-
-              <div 
-                onClick={onClose}
-                className="p-5 rounded-2xl bg-brand-dark border border-brand-violet/40 hover:border-brand-lime cursor-pointer transition-all space-y-2 group"
-              >
-                <div className="text-3xl">🪙</div>
-                <h4 className="font-heading font-bold text-white group-hover:text-brand-lime">Gold Rush</h4>
-                <p className="text-xs text-slate-400">Treasure chests & loot</p>
-              </div>
-            </div>
-
-            <button 
-              onClick={onClose}
-              className="w-full btn-tactile bg-brand-violet hover:bg-brand-violetDark text-white font-heading font-extrabold py-4 rounded-2xl shadow-tactile border-b-4 border-violet-900 text-base"
-            >
-              Launch Live Room (PIN: 199281)
-            </button>
           </div>
         )}
 

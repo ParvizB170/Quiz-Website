@@ -103,8 +103,7 @@ export default function App() {
   };
 
   const handleHostClick = () => {
-    setActiveEditingQuiz(quizzes[0] || null);
-    setView('studio');
+    setModalState({ isOpen: true, mode: 'host' });
   };
 
   const handleCreateNewQuiz = () => {
