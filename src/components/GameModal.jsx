@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ArrowRight, Zap, Trophy, Sparkles, CheckCircle2, ShieldCheck, RefreshCw, QrCode, Users, Play, Radio, Award, BarChart3 } from 'lucide-react';
+import { X, ArrowRight, Zap, Trophy, Sparkles, CheckCircle2, ShieldCheck, RefreshCw, QrCode, Users, Play, Radio, Award, BarChart3, Flame, TrendingUp } from 'lucide-react';
 
 const blitzerAvatars = [
   { id: 1, emoji: '🦊', name: 'Foxy Blitz', rarity: 'Common', color: 'border-amber-500/50 bg-amber-500/10 text-amber-300' },
@@ -35,6 +35,17 @@ const defaultSpaceQuiz = {
         { id: 3, text: 'Jupiter', shape: '●', color: 'bg-amber-500', isCorrect: false },
         { id: 4, text: 'Saturn', shape: '■', color: 'bg-emerald-500', isCorrect: false },
       ]
+    },
+    {
+      id: 2,
+      title: 'What is the hottest planet in our solar system?',
+      timeLimit: 15,
+      answers: [
+        { id: 1, text: 'Mercury', shape: '▲', color: 'bg-red-500', isCorrect: false },
+        { id: 2, text: 'Venus', shape: '◆', color: 'bg-blue-500', isCorrect: true },
+        { id: 3, text: 'Mars', shape: '●', color: 'bg-amber-500', isCorrect: false },
+        { id: 4, text: 'Sun', shape: '■', color: 'bg-emerald-500', isCorrect: false },
+      ]
     }
   ]
 };
@@ -49,18 +60,26 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
   const inputRefs = useRef([]);
 
   // Nickname state
-  const [nickname, setNickname] = useState('');
+  const [nickname, setNickname] = useState('HostBlitz');
 
   // Selected avatar state
   const [selectedAvatar, setSelectedAvatar] = useState(blitzerAvatars[4]); // Neon Unicorn default
 
-  // Host Lobby & Game State ('lobby' | 'question' | 'reveal')
+  // Game States: 'lobby' | 'question' | 'feedback' | 'leaderboard'
   const [gameState, setGameState] = useState('lobby');
   const [players, setPlayers] = useState([
-    { id: 1, name: 'TurboCoder', avatar: blitzerAvatars[0] },
-    { id: 2, name: 'NeuralKnight', avatar: blitzerAvatars[5] },
-    { id: 3, name: 'QuantumQueen', avatar: blitzerAvatars[2] }
+    { id: 1, name: 'TurboCoder', avatar: blitzerAvatars[0], score: 2400 },
+    { id: 2, name: 'NeuralKnight', avatar: blitzerAvatars[5], score: 1950 },
+    { id: 3, name: 'QuantumQueen', avatar: blitzerAvatars[2], score: 1800 },
+    { id: 4, name: 'MegaByte', avatar: blitzerAvatars[3], score: 1500 },
+    { id: 5, name: 'AstroAce', avatar: blitzerAvatars[10], score: 1200 },
   ]);
+
+  // Scoring & Streaks
+  const [userScore, setUserScore] = useState(0);
+  const [streakCount, setStreakCount] = useState(0);
+  const [lastRoundScore, setLastRoundScore] = useState(0);
+  const [wasCorrectLastRound, setWasCorrectLastRound] = useState(false);
 
   // Active Question State
   const activeQuiz = quiz && quiz.questions && quiz.questions.length > 0 ? quiz : defaultSpaceQuiz;
@@ -82,7 +101,7 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
           if (availableNicknames.length === 0) return prev;
           const randomName = availableNicknames[Math.floor(Math.random() * availableNicknames.length)];
           const randomAvatar = blitzerAvatars[Math.floor(Math.random() * blitzerAvatars.length)];
-          return [...prev, { id: Date.now(), name: randomName, avatar: randomAvatar }];
+          return [...prev, { id: Date.now(), name: randomName, avatar: randomAvatar, score: Math.floor(Math.random() * 1000) }];
         });
       }, 1500);
       return () => clearInterval(interval);
@@ -96,22 +115,19 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
         setTimeLeft((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
-            setGameState('reveal');
+            handleTimeOut();
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
 
-      // Simulate fake players answering progressively
       const fakeAnswerInterval = setInterval(() => {
         setAnsweredPlayersCount((prevCount) => {
           if (prevCount >= players.length) {
             clearInterval(fakeAnswerInterval);
-            setTimeout(() => setGameState('reveal'), 500);
             return prevCount;
           }
-          // Increment random answer choice count
           const randomChoice = Math.floor(Math.random() * currentQuestion.answers.length);
           setAnswerCounts((counts) => {
             const newCounts = [...counts];
@@ -120,7 +136,7 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
           });
           return prevCount + 1;
         });
-      }, 1200);
+      }, 1000);
 
       return () => {
         clearInterval(timer);
@@ -152,6 +168,8 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
       setUserAnswer(null);
       setAnswerCounts([0, 0, 0, 0]);
       setAnsweredPlayersCount(0);
+      setUserScore(0);
+      setStreakCount(0);
       setGameState('question');
     }
   };
@@ -165,80 +183,73 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
       return newCounts;
     });
     setAnsweredPlayersCount((prev) => Math.min(prev + 1, players.length));
+
+    // Calculate score
+    const selectedAns = currentQuestion.answers[index];
+    const isCorrect = selectedAns.isCorrect;
+    setWasCorrectLastRound(isCorrect);
+
+    let earned = 0;
+    if (isCorrect) {
+      const timeFraction = timeLeft / (currentQuestion.timeLimit || 15);
+      earned = Math.round(500 + 500 * timeFraction); // up to 1000 points based on speed
+      const newStreak = streakCount + 1;
+      setStreakCount(newStreak);
+      if (newStreak >= 3) {
+        earned += 300; // 🔥 Streak bonus points
+      }
+      setUserScore(prev => prev + earned);
+    } else {
+      setStreakCount(0);
+    }
+    setLastRoundScore(earned);
+
+    // Update player scores & transition to feedback panel
+    updateLeaderboardScores(isCorrect ? earned : 0);
+    setTimeout(() => setGameState('feedback'), 600);
+  };
+
+  const handleTimeOut = () => {
+    if (userAnswer === null) {
+      setWasCorrectLastRound(false);
+      setStreakCount(0);
+      setLastRoundScore(0);
+      updateLeaderboardScores(0);
+      setGameState('feedback');
+    }
+  };
+
+  const updateLeaderboardScores = (userEarned) => {
+    setPlayers(prev => {
+      const updated = prev.map(p => ({
+        ...p,
+        score: p.score + Math.floor(Math.random() * 600) + 200
+      }));
+      // Add user temporarily or include user in ranking
+      return updated.sort((a, b) => b.score - a.score);
+    });
+  };
+
+  const handleShowLeaderboard = () => {
+    setGameState('leaderboard');
   };
 
   const handleNextQuestion = () => {
     if (currentQuestionIndex + 1 < activeQuiz.questions.length) {
       setCurrentQuestionIndex(prev => prev + 1);
-      setTimeLeft(activeQuiz.questions[currentQuestionIndex + 1].timeLimit || 15);
+      const nextQ = activeQuiz.questions[currentQuestionIndex + 1];
+      setTimeLeft(nextQ.timeLimit || 15);
       setUserAnswer(null);
       setAnswerCounts([0, 0, 0, 0]);
       setAnsweredPlayersCount(0);
       setGameState('question');
     } else {
-      // Back to lobby or restart
       setGameState('lobby');
     }
   };
 
-  // Initialize pin digits if initialPin is provided
-  useEffect(() => {
-    if (initialPin && initialPin.length === 6) {
-      setPinDigits(initialPin.split(''));
-    }
-  }, [initialPin]);
-
-  const handlePinChange = (index, value) => {
-    const digit = value.replace(/\D/g, '').slice(-1);
-    const newDigits = [...pinDigits];
-    newDigits[index] = digit;
-    setPinDigits(newDigits);
-    setPinError(false);
-
-    if (digit && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handlePinKeyDown = (index, e) => {
-    if (e.key === 'Backspace' && !pinDigits[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-    if (e.key === 'Enter') {
-      validateAndSubmitPin();
-    }
-  };
-
-  const validateAndSubmitPin = () => {
-    const fullPin = pinDigits.join('');
-    if (fullPin.length < 6) {
-      setPinError(true);
-      setErrorMessage('Please enter all 6 digits');
-      return;
-    }
-
-    if (fullPin.startsWith('1')) {
-      setPinError(false);
-      setStep('nickname');
-    } else {
-      setPinError(true);
-      setErrorMessage("Hmm, we can't find that game");
-    }
-  };
-
-  const handleNicknameSubmit = (e) => {
-    e.preventDefault();
-    if (!nickname.trim()) return;
-    setStep('avatar');
-  };
-
-  const handleAvatarSelect = (avatar) => {
-    setSelectedAvatar(avatar);
-  };
-
-  const handleFinalJoin = () => {
-    setStep('waiting');
-  };
+  // Find correct answer text for feedback panel
+  const correctAnswerObj = currentQuestion.answers.find(a => a.isCorrect) || currentQuestion.answers[0];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
@@ -321,7 +332,7 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                             {player.name}
                           </div>
                           <div className="text-[10px] text-brand-lime font-extrabold truncate">
-                            {player.avatar.name}
+                            {player.score} pts
                           </div>
                         </div>
                       </div>
@@ -353,15 +364,20 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
             {gameState === 'question' && (
               <div className="space-y-6 animate-in zoom-in-95">
                 
-                {/* Top Bar: Question Counter, Countdown Ring, Answers Ticker */}
+                {/* Top Bar: Question Counter, Countdown Ring, Score & Streak */}
                 <div className="flex items-center justify-between bg-brand-dark/80 p-4 rounded-2xl border border-white/10">
                   <div className="flex items-center gap-3">
                     <span className="px-3 py-1 rounded-full bg-brand-violet/20 border border-brand-violet/40 text-brand-lime text-xs font-bold">
-                      Question {currentQuestionIndex + 1} of {activeQuiz.questions.length}
+                      Q{currentQuestionIndex + 1}/{activeQuiz.questions.length}
                     </span>
-                    <span className="text-xs text-slate-400 font-medium">
-                      Answers: <strong className="text-brand-lime">{answeredPlayersCount}</strong> / {players.length}
+                    <span className="text-xs text-slate-300 font-bold flex items-center gap-1">
+                      Score: <span className="text-brand-lime font-heading text-sm">{userScore}</span>
                     </span>
+                    {streakCount >= 2 && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/40 text-xs font-black flex items-center gap-1 animate-pulse">
+                        <Flame className="w-3.5 h-3.5 fill-orange-400" /> {streakCount} Streak
+                      </span>
+                    )}
                   </div>
 
                   {/* Circular SVG Countdown Ring */}
@@ -445,66 +461,112 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
               </div>
             )}
 
-            {/* REVEAL STATE */}
-            {gameState === 'reveal' && (
+            {/* FULL-SCREEN FEEDBACK PANEL STATE */}
+            {gameState === 'feedback' && (
+              <div className={`p-8 sm:p-12 rounded-3xl text-center space-y-6 animate-in zoom-in-95 border-2 ${
+                wasCorrectLastRound 
+                  ? 'bg-gradient-to-br from-emerald-950 via-emerald-900/40 to-brand-dark border-emerald-500/50 shadow-[0_0_50px_rgba(16,185,129,0.3)]' 
+                  : 'bg-gradient-to-br from-rose-950 via-rose-900/40 to-brand-dark border-rose-500/50 shadow-[0_0_50px_rgba(244,63,94,0.3)]'
+              }`}>
+                
+                <div className="w-24 h-24 mx-auto rounded-3xl flex items-center justify-center text-5xl shadow-2xl animate-bounce" style={{ animationDuration: '3s' }}>
+                  {wasCorrectLastRound ? '🎉' : '💡'}
+                </div>
+
+                <div className="space-y-3">
+                  <div className={`inline-flex items-center gap-2 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
+                    wasCorrectLastRound 
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
+                      : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                  }`}>
+                    {wasCorrectLastRound ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <ShieldCheck className="w-4 h-4 text-rose-400" />}
+                    {wasCorrectLastRound ? 'Correct Answer!' : 'Not quite right'}
+                  </div>
+
+                  <h3 className="font-heading text-4xl sm:text-5xl font-extrabold text-white">
+                    {wasCorrectLastRound ? `+${lastRoundScore} pts` : `It was ${correctAnswerObj.text}`}
+                  </h3>
+
+                  <p className="text-slate-300 text-base max-w-md mx-auto">
+                    {wasCorrectLastRound 
+                      ? (streakCount >= 3 ? '🔥 Amazing 3+ streak bonus activated!' : 'Fantastic speed and accuracy!')
+                      : `Don't worry! Every mistake is a step forward in learning. Keep your energy high!`}
+                  </p>
+                </div>
+
+                {streakCount >= 3 && (
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-orange-500/20 border border-orange-500/40 text-orange-300 font-heading font-extrabold text-sm animate-pulse">
+                    <Flame className="w-5 h-5 fill-orange-400 text-orange-400" />
+                    {streakCount} Correct in a Row! 🔥 Streak Bonus Active
+                  </div>
+                )}
+
+                <div className="pt-4 flex justify-center">
+                  <button
+                    onClick={handleShowLeaderboard}
+                    className="btn-tactile bg-brand-lime hover:bg-brand-limeHover text-brand-dark font-heading font-extrabold px-8 py-4 rounded-2xl shadow-tactile-lime border-b-4 border-lime-700 text-lg flex items-center gap-2"
+                  >
+                    View Leaderboard
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+
+              </div>
+            )}
+
+            {/* LEADERBOARD STATE (Top 5 with smooth rank animation) */}
+            {gameState === 'leaderboard' && (
               <div className="space-y-6 animate-in zoom-in-95">
                 
                 <div className="text-center space-y-2">
-                  <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold uppercase tracking-wider border border-emerald-500/30">
-                    <Award className="w-4 h-4 text-emerald-400" />
-                    Time's Up • Results Reveal
+                  <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-brand-violet/20 text-brand-lime text-xs font-bold uppercase tracking-wider border border-brand-violet/40">
+                    <Trophy className="w-4 h-4 text-brand-lime" />
+                    Live Arena Standings • Top 5
                   </div>
-                  <h3 className="font-heading text-3xl font-extrabold text-white">
-                    {userAnswer !== null && currentQuestion.answers[userAnswer]?.isCorrect ? 'Correct! 🎉 +1,000 pts' : userAnswer !== null ? 'Incorrect! ❌' : 'Time ran out!'}
+                  <h3 className="font-heading text-3xl sm:text-4xl font-extrabold text-white">
+                    Scoreboard Rankings
                   </h3>
                 </div>
 
-                {/* Answer Tiles Reveal Grid (Correct highlighted, incorrect faded) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {currentQuestion.answers.map((ans, idx) => {
-                    const isCorrect = ans.isCorrect;
-                    const count = answerCounts[idx] || 0;
-                    const maxCount = Math.max(...answerCounts, 1);
-                    const percentage = Math.round((count / Math.max(answeredPlayersCount, 1)) * 100);
-
+                {/* Top 5 Leaderboard List with smooth transitions */}
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
+                  {players.slice(0, 5).map((player, idx) => {
+                    const rank = idx + 1;
+                    const isTop3 = rank <= 3;
                     return (
                       <div
-                        key={ans.id}
-                        className={`p-5 rounded-2xl border-2 transition-all duration-300 relative overflow-hidden flex flex-col justify-between gap-4 ${
-                          isCorrect 
-                            ? 'border-brand-lime bg-brand-lime/10 shadow-[0_0_30px_rgba(163,230,53,0.3)] scale-[1.02]' 
-                            : 'border-white/10 bg-brand-dark/80 opacity-40 grayscale'
+                        key={player.id}
+                        className={`p-4 rounded-2xl bg-brand-dark/90 border flex items-center justify-between transition-all duration-500 transform ${
+                          rank === 1 
+                            ? 'border-brand-lime bg-brand-lime/10 shadow-[0_0_20px_rgba(163,230,53,0.3)] scale-[1.01]' 
+                            : 'border-white/10 hover:border-brand-violet/50'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className={`w-10 h-10 rounded-xl flex items-center justify-center font-heading text-xl font-bold ${ans.color} text-white`}>
-                              {ans.shape}
-                            </span>
-                            <span className="font-heading font-bold text-lg text-white">
-                              {ans.text}
-                            </span>
+                        <div className="flex items-center gap-4">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-heading font-extrabold text-base ${
+                            rank === 1 ? 'bg-brand-lime text-brand-dark shadow-md' :
+                            rank === 2 ? 'bg-slate-300 text-slate-950' :
+                            rank === 3 ? 'bg-amber-600 text-white' : 'bg-white/10 text-slate-300'
+                          }`}>
+                            #{rank}
                           </div>
 
-                          {isCorrect && (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-brand-lime text-brand-dark font-heading font-extrabold text-xs shadow-md">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Correct Answer
-                            </span>
-                          )}
+                          <div className="flex items-center gap-3">
+                            <span className="text-3xl select-none">{player.avatar.emoji}</span>
+                            <div>
+                              <div className="font-heading font-bold text-base text-white">
+                                {player.name}
+                              </div>
+                              <div className="text-xs text-brand-lime font-medium">
+                                {player.avatar.name}
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
-                        {/* Bar Chart representing how many picked this */}
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-xs font-bold text-slate-300">
-                            <span>{count} players ({percentage}%)</span>
-                            {userAnswer === idx && <span className="text-brand-lime">Your Choice</span>}
-                          </div>
-                          <div className="w-full h-3 bg-brand-dark rounded-full overflow-hidden border border-white/10">
-                            <div 
-                              className={`h-full transition-all duration-700 rounded-full ${isCorrect ? 'bg-brand-lime' : 'bg-slate-600'}`}
-                              style={{ width: `${Math.max(percentage, 5)}%` }}
-                            />
-                          </div>
+                        <div className="font-heading text-xl font-black text-white flex items-center gap-1.5">
+                          <TrendingUp className="w-4 h-4 text-brand-lime" />
+                          {player.score.toLocaleString()} <span className="text-xs font-bold text-slate-400">pts</span>
                         </div>
                       </div>
                     );
@@ -734,7 +796,7 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                 className="px-6 py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-sm border border-white/10 transition-all flex items-center justify-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" />
-                Join Another Game & Another Game
+                Join Another Game
               </button>
             </div>
 
