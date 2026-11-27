@@ -103,7 +103,7 @@ export default function App() {
   };
 
   const handleHostClick = () => {
-    setModalState({ isOpen: true, mode: 'host' });
+    handleCreateNewQuiz();
   };
 
   const handleCreateNewQuiz = () => {
@@ -208,7 +208,12 @@ export default function App() {
         <GameModal 
           mode={modalState.mode} 
           initialPin={modalState.pin} 
-          onClose={handleCloseModal} 
+          quiz={quizzes[0] || defaultSpaceQuiz}
+          onClose={handleCloseModal}
+          onNewQuiz={() => {
+            handleCloseModal();
+            setMyQuizzesOpen(true);
+          }}
         />
       )}
 

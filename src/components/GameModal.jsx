@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ArrowRight, Zap, Trophy, Sparkles, CheckCircle2, ShieldCheck, RefreshCw, QrCode, Users, Play, Radio, Award, BarChart3, Flame, TrendingUp, Pause, SkipForward, RotateCcw } from 'lucide-react';
+import { X, ArrowRight, Zap, Trophy, Sparkles, CheckCircle2, ShieldCheck, RefreshCw, QrCode, Users, Play, Radio, Award, BarChart3, Flame, TrendingUp, Pause, SkipForward, RotateCcw, Crown, BookOpen } from 'lucide-react';
 
 const blitzerAvatars = [
   { id: 1, emoji: '🦊', name: 'Foxy Blitz', rarity: 'Common', color: 'border-amber-500/50 bg-amber-500/10 text-amber-300' },
@@ -61,7 +61,7 @@ const defaultSpaceQuiz = {
   ]
 };
 
-export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQuiz, onClose }) {
+export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQuiz, onClose, onNewQuiz }) {
   const [step, setStep] = useState(mode === 'join' ? 'pin' : 'lobby');
   
   // 6 PIN boxes state
@@ -80,13 +80,47 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
   const [gameState, setGameState] = useState('lobby');
   const [isPaused, setIsPaused] = useState(false);
 
+  // Podium reveal stage for 'final' state (0: suspense, 1: 3rd place, 2: 2nd place, 3: 1st place + confetti)
+  const [podiumStage, setPodiumStage] = useState(0);
+  const [badgeStage, setBadgeStage] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+  const [shareCopied, setShareCopied] = useState(false);
+
   const [players, setPlayers] = useState([
-    { id: 1, name: 'TurboCoder', avatar: blitzerAvatars[0], score: 2400 },
-    { id: 2, name: 'NeuralKnight', avatar: blitzerAvatars[5], score: 1950 },
-    { id: 3, name: 'QuantumQueen', avatar: blitzerAvatars[2], score: 1800 },
-    { id: 4, name: 'MegaByte', avatar: blitzerAvatars[3], score: 1500 },
-    { id: 5, name: 'AstroAce', avatar: blitzerAvatars[10], score: 1200 },
+    { id: 'user', name: nickname || 'HostBlitz', avatar: selectedAvatar, score: 0, isUser: true },
+    { id: 1, name: 'TurboCoder', avatar: blitzerAvatars[0], score: 2840 },
+    { id: 2, name: 'NeuralKnight', avatar: blitzerAvatars[5], score: 2450 },
+    { id: 3, name: 'QuantumQueen', avatar: blitzerAvatars[2], score: 2100 },
+    { id: 4, name: 'MegaByte', avatar: blitzerAvatars[3], score: 1750 },
+    { id: 5, name: 'AstroAce', avatar: blitzerAvatars[10], score: 1400 },
   ]);
+
+  // Sync user player details when userScore, nickname, or selectedAvatar changes
+  useEffect(() => {
+    setPlayers(prev => {
+      const filtered = prev.filter(p => !p.isUser);
+      return [
+        { id: 'user', name: nickname || 'HostBlitz', avatar: selectedAvatar, score: userScore, isUser: true },
+        ...filtered
+      ];
+    });
+  }, [userScore, nickname, selectedAvatar]);
+
+  // Badge flip-in stage effect for final podium
+  useEffect(() => {
+    if (gameState === 'final') {
+      setBadgeStage(0);
+      const t1 = setTimeout(() => setBadgeStage(1), 600);
+      const t2 = setTimeout(() => setBadgeStage(2), 1400);
+      const t3 = setTimeout(() => setBadgeStage(3), 2200);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
+    }
+  }, [gameState]);
 
   // Scoring & Streaks
   const [userScore, setUserScore] = useState(0);
@@ -121,7 +155,22 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
     }
   }, [mode, gameState]);
 
-  // Countdown timer & fake player answering simulation during 'question' state (with Pause check & bug-free cleanup)
+  // Handle Podium reveal stages when entering 'final'
+  useEffect(() => {
+    if (gameState === 'final') {
+      setPodiumStage(0);
+      const t1 = setTimeout(() => setPodiumStage(1), 800);  // Reveal 3rd
+      const t2 = setTimeout(() => setPodiumStage(2), 2000); // Reveal 2nd
+      const t3 = setTimeout(() => setPodiumStage(3), 3200); // Reveal 1st + confetti
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
+    }
+  }, [gameState]);
+
+  // Countdown timer & fake player answering simulation during 'question' state
   useEffect(() => {
     let timer = null;
     let fakeAnswerInterval = null;
@@ -186,6 +235,8 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
       setAnsweredPlayersCount(0);
       setUserScore(0);
       setStreakCount(0);
+      setCorrectCount(0);
+      setBestStreak(0);
       setIsPaused(false);
       setGameState('question');
     }
@@ -201,7 +252,6 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
     });
     setAnsweredPlayersCount((prev) => Math.min(prev + 1, players.length));
 
-    // Calculate score
     const selectedAns = currentQuestion.answers[index];
     const isCorrect = selectedAns.isCorrect;
     setWasCorrectLastRound(isCorrect);
@@ -209,11 +259,13 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
     let earned = 0;
     if (isCorrect) {
       const timeFraction = timeLeft / (currentQuestion.timeLimit || 15);
-      earned = Math.round(500 + 500 * timeFraction); // up to 1000 points based on speed
+      earned = Math.round(500 + 500 * timeFraction);
       const newStreak = streakCount + 1;
       setStreakCount(newStreak);
+      setBestStreak(prev => Math.max(prev, newStreak));
+      setCorrectCount(prev => prev + 1);
       if (newStreak >= 3) {
-        earned += 300; // 🔥 Streak bonus points
+        earned += 300;
       }
       setUserScore(prev => prev + earned);
     } else {
@@ -236,7 +288,6 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
   };
 
   const handleSkipQuestion = () => {
-    // Instantly move to feedback
     setWasCorrectLastRound(false);
     setLastRoundScore(0);
     updateLeaderboardScores(0);
@@ -269,12 +320,17 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
       setIsPaused(false);
       setGameState('question');
     } else {
-      // Reached end of quiz -> Final Results screen
       setGameState('final');
     }
   };
 
   const correctAnswerObj = currentQuestion.answers.find(a => a.isCorrect) || currentQuestion.answers[0];
+
+  // Top 3 players for podium
+  const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+  const firstPlace = sortedPlayers[0] || { name: 'TurboCoder', score: 3200, avatar: blitzerAvatars[0] };
+  const secondPlace = sortedPlayers[1] || { name: 'NeuralKnight', score: 2800, avatar: blitzerAvatars[5] };
+  const thirdPlace = sortedPlayers[2] || { name: 'QuantumQueen', score: 2400, avatar: blitzerAvatars[2] };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
@@ -389,7 +445,6 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
             {gameState === 'question' && (
               <div className="space-y-6 animate-in zoom-in-95">
                 
-                {/* Top Bar: Progress Indicator ("Question 3 of 8"), Countdown Ring, Score, Pause / Skip controls */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-brand-dark/80 p-4 rounded-2xl border border-white/10">
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="px-3.5 py-1.5 rounded-full bg-brand-violet/20 border border-brand-violet/40 text-brand-lime text-xs font-bold uppercase tracking-wider">
@@ -405,7 +460,6 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                     )}
                   </div>
 
-                  {/* Host Controls: Pause & Skip */}
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setIsPaused(!isPaused)}
@@ -426,7 +480,6 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                     </button>
                   </div>
 
-                  {/* Circular SVG Countdown Ring */}
                   <div className="relative w-16 h-16 flex items-center justify-center">
                     <svg className="w-16 h-16 transform -rotate-90">
                       <circle
@@ -463,14 +516,12 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                   </div>
                 )}
 
-                {/* Big Question Text */}
                 <div className="p-6 rounded-3xl bg-gradient-to-r from-brand-violet/20 via-purple-900/30 to-brand-dark border border-brand-violet/40 text-center shadow-xl">
                   <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-white leading-snug">
                     {currentQuestion.title}
                   </h2>
                 </div>
 
-                {/* 4 Big Answer Tiles */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {currentQuestion.answers.map((ans, idx) => {
                     const isSelected = userAnswer === idx;
@@ -566,7 +617,7 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
               </div>
             )}
 
-            {/* LEADERBOARD STATE (Top 5 with smooth rank animation) */}
+            {/* LEADERBOARD STATE */}
             {gameState === 'leaderboard' && (
               <div className="space-y-6 animate-in zoom-in-95">
                 
@@ -580,7 +631,6 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                   </h3>
                 </div>
 
-                {/* Top 5 Leaderboard List with smooth transitions */}
                 <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
                   {players.slice(0, 5).map((player, idx) => {
                     const rank = idx + 1;
@@ -636,7 +686,7 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
                     onClick={handleNextQuestion}
                     className="btn-tactile bg-brand-lime hover:bg-brand-limeHover text-brand-dark font-heading font-extrabold px-8 py-4 rounded-2xl shadow-tactile-lime border-b-4 border-lime-700 text-base flex items-center gap-2"
                   >
-                    {currentQuestionIndex + 1 < activeQuiz.questions.length ? 'Next Question' : 'View Final Results'}
+                    {currentQuestionIndex + 1 < activeQuiz.questions.length ? 'Next Question' : 'View Final Podium'}
                     <ArrowRight className="w-5 h-5" />
                   </button>
                 </div>
@@ -644,62 +694,282 @@ export default function GameModal({ mode, initialPin = '', quiz = defaultSpaceQu
               </div>
             )}
 
-            {/* FINAL RESULTS SCREEN */}
-            {gameState === 'final' && (
-              <div className="text-center space-y-6 py-8 animate-in zoom-in-95">
-                <div className="w-28 h-28 mx-auto rounded-3xl bg-brand-lime/20 border-2 border-brand-lime flex items-center justify-center text-6xl shadow-glow-lime animate-bounce" style={{ animationDuration: '3s' }}>
-                  🏆
-                </div>
+            {/* ANIMATED PODIUM STATE */}
+            {gameState === 'final' && (() => {
+              const totalQuestions = activeQuiz.questions.length;
+              const accuracyPct = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 85;
+              const userRank = sortedPlayers.findIndex(p => p.isUser || p.name === (nickname || 'HostBlitz')) + 1;
+              const badges = [
+                { id: 'speed', name: 'Speed Demon', icon: '⚡', desc: 'Answered under time limit' },
+                { id: 'sharp', name: 'Sharpshooter', icon: '🎯', desc: `${accuracyPct}% Accuracy rate` },
+                { id: 'fire', name: 'On Fire', icon: '🔥', desc: `${bestStreak} Max streak record` },
+              ];
 
-                <div className="space-y-3">
-                  <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-brand-violet/20 text-brand-lime text-xs font-bold uppercase tracking-wider border border-brand-violet/40">
-                    <Award className="w-4 h-4 text-brand-lime" />
-                    Game Completed Successfully
+              return (
+                <div className="relative p-6 sm:p-10 rounded-3xl bg-gradient-to-br from-brand-dark via-[#150b36] to-purple-950 border border-brand-violet/50 shadow-2xl overflow-hidden text-center space-y-8">
+                  
+                  {/* Spotlight glow behind 1st place */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-brand-lime/20 rounded-full blur-[120px] pointer-events-none animate-pulse" />
+
+                  {/* Confetti burst particles when stage >= 3 */}
+                  {podiumStage >= 3 && (
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+                      {[...Array(24)].map((_, i) => (
+                        <div
+                          key={i}
+                          className="absolute w-3 h-3 rounded-full animate-confetti"
+                          style={{
+                            left: `${Math.random() * 100}%`,
+                            top: `${Math.random() * 50}%`,
+                            backgroundColor: i % 3 === 0 ? '#A3E635' : i % 3 === 1 ? '#7C3AED' : '#38BDF8',
+                            animationDuration: `${1.5 + Math.random() * 2}s`,
+                            animationDelay: `${Math.random() * 0.5}s`
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="space-y-2 relative z-10">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-lime/15 border border-brand-lime/40 text-brand-lime text-xs font-bold uppercase tracking-wider shadow-glow-lime">
+                      <Trophy className="w-4 h-4 text-brand-lime" />
+                      Final Arena Podium Standings
+                    </div>
+                    <h3 className="font-heading text-4xl sm:text-5xl font-black text-white tracking-tight">
+                      {podiumStage === 0 ? 'Calculating Final Standings...' : '🏆 Arena Champions 🏆'}
+                    </h3>
                   </div>
-                  <h3 className="font-heading text-4xl sm:text-5xl font-extrabold text-white">
-                    Final Arena Results! 🎉
-                  </h3>
-                  <p className="text-slate-300 text-base max-w-md mx-auto">
-                    You earned a total score of <span className="text-brand-lime font-bold font-heading text-xl">{userScore} points</span> across {activeQuiz.questions.length} questions.
-                  </p>
-                </div>
 
-                <div className="p-6 rounded-3xl bg-brand-dark border border-white/10 max-w-md mx-auto space-y-3">
-                  <div className="text-xs uppercase tracking-widest text-slate-400 font-bold">Top Champion of the Match</div>
-                  <div className="flex items-center justify-center gap-3">
-                    <span className="text-4xl">🦄</span>
-                    <div className="text-left">
-                      <div className="font-heading font-bold text-lg text-white">{players[0]?.name || 'TurboCoder'}</div>
-                      <div className="text-xs text-brand-lime font-extrabold">{players[0]?.score || 3500} pts</div>
+                  {/* Podium Blocks Container */}
+                  <div className="flex items-end justify-center gap-4 sm:gap-8 pt-4 pb-2 relative z-10 min-h-[300px]">
+                    
+                    {/* 2nd Place Podium */}
+                    <div className="flex flex-col items-center">
+                      {podiumStage >= 2 && (
+                        <div className="mb-3 space-y-1 text-center animate-in zoom-in-50 duration-500">
+                          <div className="text-3xl sm:text-4xl">{secondPlace.avatar.emoji}</div>
+                          <div className="font-heading font-bold text-xs sm:text-sm text-white truncate max-w-[100px]">{secondPlace.name}</div>
+                          <div className="text-[10px] font-extrabold text-slate-300 bg-white/10 px-2 py-0.5 rounded-full">{secondPlace.score} pts</div>
+                        </div>
+                      )}
+                      <div className={`w-24 sm:w-28 bg-gradient-to-t from-purple-900 to-brand-violet rounded-t-2xl border-t-4 border-brand-violet/80 flex items-center justify-center shadow-2xl transition-all duration-700 transform ${
+                        podiumStage >= 2 ? 'h-36 sm:h-44 translate-y-0 opacity-100' : 'h-0 translate-y-20 opacity-0'
+                      }`}>
+                        <span className="font-heading text-4xl font-black text-white/40">2</span>
+                      </div>
+                    </div>
+
+                    {/* 1st Place Podium (Tallest with crown & spotlight) */}
+                    <div className="flex flex-col items-center">
+                      {podiumStage >= 3 && (
+                        <div className="mb-3 space-y-1 text-center animate-in zoom-in-50 duration-500">
+                          <Crown className="w-6 h-6 text-brand-lime mx-auto animate-bounce" />
+                          <div className="text-4xl sm:text-5xl">{firstPlace.avatar.emoji}</div>
+                          <div className="font-heading font-extrabold text-sm sm:text-base text-brand-lime truncate max-w-[120px]">{firstPlace.name}</div>
+                          <div className="text-xs font-black text-brand-dark bg-brand-lime px-2.5 py-0.5 rounded-full shadow-glow-lime">{firstPlace.score} pts</div>
+                        </div>
+                      )}
+                      <div className={`w-28 sm:w-32 bg-gradient-to-t from-brand-violet via-purple-700 to-brand-lime/40 rounded-t-2xl border-t-4 border-brand-lime flex items-center justify-center shadow-2xl transition-all duration-700 transform ${
+                        podiumStage >= 3 ? 'h-48 sm:h-56 translate-y-0 opacity-100' : 'h-0 translate-y-24 opacity-0'
+                      }`}>
+                        <span className="font-heading text-5xl font-black text-white/50">1</span>
+                      </div>
+                    </div>
+
+                    {/* 3rd Place Podium */}
+                    <div className="flex flex-col items-center">
+                      {podiumStage >= 1 && (
+                        <div className="mb-3 space-y-1 text-center animate-in zoom-in-50 duration-500">
+                          <div className="text-3xl sm:text-4xl">{thirdPlace.avatar.emoji}</div>
+                          <div className="font-heading font-bold text-xs sm:text-sm text-white truncate max-w-[100px]">{thirdPlace.name}</div>
+                          <div className="text-[10px] font-extrabold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full">{thirdPlace.score} pts</div>
+                        </div>
+                      )}
+                      <div className={`w-24 sm:w-28 bg-gradient-to-t from-amber-950 to-amber-900 rounded-t-2xl border-t-4 border-amber-500/80 flex items-center justify-center shadow-2xl transition-all duration-700 transform ${
+                        podiumStage >= 1 ? 'h-24 sm:h-32 translate-y-0 opacity-100' : 'h-0 translate-y-16 opacity-0'
+                      }`}>
+                        <span className="font-heading text-4xl font-black text-white/40">3</span>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* "YOUR RESULT" CARD */}
+                  <div className="bg-gradient-to-r from-brand-violet/30 via-purple-900/40 to-brand-dark p-6 rounded-3xl border border-brand-violet/60 shadow-xl relative z-10 space-y-4 text-left">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-4xl">{selectedAvatar.emoji}</span>
+                        <div>
+                          <div className="text-xs uppercase tracking-wider text-brand-lime font-bold">Your Result • {nickname || 'HostBlitz'}</div>
+                          <h4 className="font-heading text-2xl font-black text-white">Rank #{userRank} of {sortedPlayers.length}</h4>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 bg-brand-dark/80 px-4 py-2.5 rounded-2xl border border-white/10 flex-wrap">
+                        <div>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase">Total Score</div>
+                          <div className="font-heading text-xl font-black text-brand-lime">{userScore.toLocaleString()} pts</div>
+                        </div>
+                        <div className="w-px h-8 bg-white/10 hidden sm:block" />
+                        <div>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase">Accuracy</div>
+                          <div className="font-heading text-xl font-black text-white">{accuracyPct}%</div>
+                        </div>
+                        <div className="w-px h-8 bg-white/10 hidden sm:block" />
+                        <div>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase">Best Streak</div>
+                          <div className="font-heading text-xl font-black text-orange-400 flex items-center gap-1">
+                            <Flame className="w-4 h-4 fill-orange-400" /> {bestStreak}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3 Earned Badges Row (flipping in one by one) */}
+                    <div className="space-y-2 pt-2">
+                      <div className="text-xs uppercase tracking-wider text-slate-300 font-bold flex items-center gap-1.5">
+                        <Award className="w-4 h-4 text-brand-lime" /> Earned Arena Badges
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {badges.map((badge, idx) => (
+                          <div
+                            key={badge.id}
+                            style={{ transitionDelay: `${idx * 200}ms` }}
+                            className={`p-3 rounded-2xl bg-brand-dark/90 border border-brand-violet/40 flex items-center gap-3 transition-all duration-700 transform ${
+                              badgeStage >= idx + 1 
+                                ? 'opacity-100 rotate-y-0 translate-y-0 scale-100 shadow-lg' 
+                                : 'opacity-0 rotate-y-90 translate-y-4 scale-75'
+                            }`}
+                          >
+                            <span className="text-2xl p-2 rounded-xl bg-white/5 border border-white/10">{badge.icon}</span>
+                            <div>
+                              <div className="font-heading font-bold text-sm text-white">{badge.name}</div>
+                              <div className="text-[10px] text-brand-lime font-medium">{badge.desc}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
-                  <button
-                    onClick={() => {
-                      setGameState('lobby');
-                      setPlayers([
-                        { id: 1, name: 'TurboCoder', avatar: blitzerAvatars[0], score: 2400 },
-                        { id: 2, name: 'NeuralKnight', avatar: blitzerAvatars[5], score: 1950 },
-                        { id: 3, name: 'QuantumQueen', avatar: blitzerAvatars[2], score: 1800 },
-                      ]);
-                    }}
-                    className="btn-tactile bg-brand-violet hover:bg-brand-violetDark text-white font-heading font-extrabold px-6 py-3.5 rounded-xl shadow-tactile border-b-4 border-violet-900 text-sm flex items-center justify-center gap-2"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    Play Again
-                  </button>
-                  <button
-                    onClick={onClose}
-                    className="px-6 py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-sm border border-white/10 transition-all"
-                  >
-                    Exit to Home
-                  </button>
-                </div>
+                  {/* FULL RANKED LEADERBOARD FOR EVERY PLAYER */}
+                  <div className="space-y-3 relative z-10 text-left">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                        <Trophy className="w-4 h-4 text-brand-lime" />
+                        Full Ranked Leaderboard ({sortedPlayers.length} Players)
+                      </span>
+                      <span className="text-xs text-brand-lime font-semibold">
+                        Final Standings
+                      </span>
+                    </div>
 
-              </div>
-            )}
+                    <div className="space-y-2 max-h-[240px] overflow-y-auto pr-2 scrollbar-thin">
+                      {sortedPlayers.map((player, idx) => {
+                        const rank = idx + 1;
+                        const isCurrentUser = player.isUser || player.name === (nickname || 'HostBlitz');
+                        return (
+                          <div
+                            key={player.id || idx}
+                            className={`p-3.5 rounded-2xl border flex items-center justify-between transition-all ${
+                              isCurrentUser 
+                                ? 'bg-brand-lime/15 border-brand-lime ring-2 ring-brand-lime/40 shadow-glow-lime' 
+                                : rank === 1 
+                                ? 'bg-amber-500/10 border-amber-500/50' 
+                                : 'bg-brand-dark/80 border-white/10 hover:border-brand-violet/40'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-heading font-extrabold text-sm ${
+                                rank === 1 ? 'bg-amber-400 text-slate-950 shadow-md' :
+                                rank === 2 ? 'bg-slate-300 text-slate-950' :
+                                rank === 3 ? 'bg-amber-700 text-white' : 'bg-white/10 text-slate-300'
+                              }`}>
+                                #{rank}
+                              </div>
+                              <span className="text-2xl select-none">{player.avatar.emoji}</span>
+                              <div>
+                                <div className="font-heading font-bold text-sm text-white flex items-center gap-2">
+                                  {player.name}
+                                  {isCurrentUser && (
+                                    <span className="px-2 py-0.5 rounded-full bg-brand-lime text-brand-dark text-[10px] font-black uppercase">You</span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-medium">
+                                  {player.avatar.name || 'Blitzer'}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="font-heading text-lg font-black text-white flex items-center gap-1">
+                              {player.score.toLocaleString()} <span className="text-xs font-bold text-slate-400">pts</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* BUTTONS: Play Again, New Quiz, Share Result, Exit */}
+                  <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center relative z-10">
+                    <button
+                      onClick={() => {
+                        setGameState('lobby');
+                        setPodiumStage(0);
+                        setUserScore(0);
+                        setStreakCount(0);
+                        setCorrectCount(0);
+                        setBestStreak(0);
+                        setCurrentQuestionIndex(0);
+                        setPlayers(prev => prev.map(p => ({ ...p, score: 0 })));
+                      }}
+                      className="btn-tactile bg-brand-lime hover:bg-brand-limeHover text-brand-dark font-heading font-extrabold px-8 py-4 rounded-2xl shadow-tactile-lime border-b-4 border-lime-700 text-base flex items-center justify-center gap-2"
+                    >
+                      <RotateCcw className="w-5 h-5" />
+                      Play Again
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (onNewQuiz) {
+                          onNewQuiz();
+                        } else {
+                          onClose();
+                        }
+                      }}
+                      className="px-6 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-base border border-white/10 transition-all flex items-center justify-center gap-2"
+                    >
+                      <BookOpen className="w-5 h-5 text-brand-lime" />
+                      New Quiz
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        const summary = `🚀 BrainBlitz Arena Result!\nPlayer: ${nickname || 'HostBlitz'}\nRank: #${userRank} (${userScore.toLocaleString()} pts)\nAccuracy: ${accuracyPct}%\nBest Streak: ${bestStreak}🔥\nPlay now at BrainBlitz!`;
+                        navigator.clipboard.writeText(summary);
+                        setShareCopied(true);
+                        setTimeout(() => setShareCopied(false), 2500);
+                      }}
+                      className={`btn-tactile font-heading font-extrabold px-8 py-4 rounded-2xl text-base flex items-center justify-center gap-2 transition-all ${
+                        shareCopied 
+                          ? 'bg-emerald-500 text-slate-950 border-b-4 border-emerald-700 shadow-lg' 
+                          : 'bg-brand-violet hover:bg-brand-violetDark text-white shadow-tactile border-b-4 border-violet-900'
+                      }`}
+                    >
+                      {shareCopied ? <CheckCircle2 className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
+                      {shareCopied ? 'Result Copied! 📋' : 'Share Result'}
+                    </button>
+
+                    <button
+                      onClick={onClose}
+                      className="px-6 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-base border border-white/10 transition-all"
+                    >
+                      Exit to Home
+                    </button>
+                  </div>
+
+                </div>
+              );
+            })()}
 
           </div>
         )}
