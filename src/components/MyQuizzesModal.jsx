@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Play, Edit3, Trash2, Globe, Lock, Plus, Sparkles } from 'lucide-react';
 
-export default function MyQuizzesModal({ quizzes, onSelectQuiz, onCreateNew, onDeleteQuiz, onClose }) {
+export default function MyQuizzesModal({ quizzes, onSelectQuiz, onCreateNew, onDeleteQuiz, onHostQuiz, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-3xl bg-brand-cardDark border border-brand-violet/40 rounded-3xl p-8 shadow-2xl text-white overflow-hidden max-h-[85vh] flex flex-col">
@@ -86,11 +86,20 @@ export default function MyQuizzesModal({ quizzes, onSelectQuiz, onCreateNew, onD
 
                   <div className="pt-4 mt-4 border-t border-white/10 flex items-center justify-between gap-2">
                     <button 
+                      onClick={() => onHostQuiz && onHostQuiz(quiz)}
+                      className="btn-tactile bg-brand-lime hover:bg-brand-limeHover text-brand-dark font-heading font-extrabold px-3.5 py-2 rounded-xl shadow-tactile-lime border-b-4 border-lime-700 text-xs flex items-center justify-center gap-1.5"
+                      title="Host live game"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-brand-dark" />
+                      Host
+                    </button>
+
+                    <button 
                       onClick={() => onSelectQuiz(quiz)}
                       className="flex-1 btn-tactile bg-brand-violet hover:bg-brand-violetDark text-white font-heading font-bold py-2 rounded-xl shadow-tactile border-b-4 border-violet-900 text-xs flex items-center justify-center gap-1.5"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
-                      Edit in Studio
+                      Edit
                     </button>
                     
                     <button 

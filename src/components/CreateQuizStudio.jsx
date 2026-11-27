@@ -56,7 +56,7 @@ const sampleSpaceQuestions = [
   }
 ];
 
-export default function CreateQuizStudio({ currentQuiz, onClose, onSaveQuiz }) {
+export default function CreateQuizStudio({ currentQuiz, onClose, onSaveQuiz, onSaveAndHost }) {
   const [quizId] = useState(currentQuiz?.id || Date.now());
   const [quizTitle, setQuizTitle] = useState(currentQuiz?.title || 'Untitled Science Blitz');
   const [coverColor, setCoverColor] = useState(currentQuiz?.coverColor || '#7C3AED');
@@ -298,7 +298,36 @@ export default function CreateQuizStudio({ currentQuiz, onClose, onSaveQuiz }) {
                 alert('Please resolve validation hints on your questions before hosting.');
                 return;
               }
-              alert(`Saved and launching live game for "${quizTitle}"!`);
+              const updatedQuiz = {
+                id: quizId,
+                title: quizTitle,
+                coverColor,
+                visibility,
+                questions,
+                updatedAt: new Date().toISOString()
+              };
+              try {
+                const existing = JSON.parse(localStorage.getItem('brainblitz_quizzes') || '[]');
+                const index = existing.findIndex(q => q.id === quizId);
+                if (index >= 0) {
+                  existing[index] = updatedQuiz;
+                } else {
+                  existing.push(updatedQuiz);
+                }
+                localStorage.setItem('brainblitz_quizzes', JSON.stringify(existing));
+              } catch (err) {
+                console.warn('LocalStorage unavailable:', err);
+              }
+
+              if (onSaveQuiz) {
+                onSaveQuiz(updatedQuiz);
+              }
+
+              if (onSaveAndHost) {
+                onSaveAndHost(updatedQuiz);
+              } else {
+                alert(`Saved and launching live game for "${quizTitle}"!`);
+              }
             }}
             className="btn-tactile bg-brand-lime hover:bg-brand-limeHover text-brand-dark font-heading font-extrabold px-6 py-3 rounded-2xl shadow-tactile-lime border-b-4 border-lime-700 flex items-center gap-2 text-base"
           >

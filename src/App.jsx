@@ -70,7 +70,7 @@ const defaultSeedQuizzes = [
 
 export default function App() {
   const [view, setView] = useState('landing'); // 'landing' or 'studio'
-  const [modalState, setModalState] = useState({ isOpen: false, mode: 'join', pin: '' });
+  const [modalState, setModalState] = useState({ isOpen: false, mode: 'join', pin: '', quiz: null });
   const [myQuizzesOpen, setMyQuizzesOpen] = useState(false);
   
   // Quizzes list with localStorage persistence + memory fallback
@@ -99,11 +99,23 @@ export default function App() {
   }, [quizzes]);
 
   const handleJoinGame = (pin) => {
-    setModalState({ isOpen: true, mode: 'join', pin });
+    setModalState({ isOpen: true, mode: 'join', pin, quiz: null });
   };
 
   const handleHostClick = () => {
     handleCreateNewQuiz();
+  };
+
+  const handleHostQuiz = (quiz) => {
+    setMyQuizzesOpen(false);
+    setView('landing');
+    setModalState({ isOpen: true, mode: 'host', pin: '', quiz });
+  };
+
+  const handleSaveAndHost = (savedQuiz) => {
+    handleSaveQuiz(savedQuiz);
+    setView('landing');
+    setModalState({ isOpen: true, mode: 'host', pin: '', quiz: savedQuiz });
   };
 
   const handleCreateNewQuiz = () => {
@@ -166,6 +178,7 @@ export default function App() {
         currentQuiz={activeEditingQuiz} 
         onClose={() => setView('landing')} 
         onSaveQuiz={handleSaveQuiz}
+        onSaveAndHost={handleSaveAndHost}
       />
     );
   }
@@ -208,7 +221,7 @@ export default function App() {
         <GameModal 
           mode={modalState.mode} 
           initialPin={modalState.pin} 
-          quiz={quizzes[0] || defaultSpaceQuiz}
+          quiz={modalState.quiz || quizzes[0] || defaultSpaceQuiz}
           onClose={handleCloseModal}
           onNewQuiz={() => {
             handleCloseModal();
@@ -224,6 +237,7 @@ export default function App() {
           onSelectQuiz={handleSelectQuizToEdit}
           onCreateNew={handleCreateNewQuiz}
           onDeleteQuiz={handleDeleteQuiz}
+          onHostQuiz={handleHostQuiz}
           onClose={() => setMyQuizzesOpen(false)}
         />
       )}
